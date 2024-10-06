@@ -1,0 +1,418 @@
+---
+title: "Descriptive Analysis"
+format: html
+code-fold: true
+code-tools: true
+editor: visual
+---
+
+```{r}
+
+setwd("~/Desktop/R_projects/msc")
+
+
+rm(list = ls()) # Clear Global Environment
+
+library(tidyverse)
+library(ggplot2)
+library(hrbrthemes)
+library(psych)
+library(corrr)
+library(broom)
+library(likert)
+library(gt)
+library(viridis)
+```
+
+```{r}
+data <- read_csv("data/middle_school_music_mindsets_clean_full.csv")
+```
+
+```{r}
+#Reclassify data as factor
+reclassFactor <- c("grade","school","race","hispanic_latino","gender","currentSchoolMusic","familyMusic")
+
+data[reclassFactor] <- lapply(data[reclassFactor], as.factor)
+```
+
+# Sample
+
+### Total
+
+```{r}
+count(data)
+```
+
+### School
+
+```{r}
+count(data,school) 
+```
+
+##### Chi Squared: Goodness of Fit (School Distribution)
+
+H0: There is no significant difference in the distribution of students among the schools (no statistical difference between expected and observed values)
+
+H1: There is a significant difference in the distribution of students among the schools (observed values differ significant from expected values)
+
+```{r}
+  chisq.test(table(data$school))
+```
+
+The proportion of students in each school varies significantly.
+
+### Grade
+
+```{r}
+n_grade <- count(data, grade)
+n_grade
+```
+
+### School and Grade
+
+```{r}
+count(data,school, grade)
+```
+
+### Race
+
+```{r}
+
+data %>% 
+  count(race) %>% 
+  mutate("%" = n/sum(n))
+
+```
+
+### Gender
+
+```{r}
+
+data %>% 
+  count(gender)  %>% 
+  mutate("%" = round(n/sum(n),2)) 
+
+
+```
+
+### Current Music Class Enrollment (total and by school)
+
+```{r}
+#Count and Proportion per class
+music_elective_table <- data %>% 
+ count(currentSchoolMusic)%>% 
+  mutate("%" = round(n/sum(n)*100,2))
+
+#Proportion per school per class
+ round(prop.table(table(data$school,data$currentSchoolMusic),1)*100, 2)
+
+ #Percentages
+percentages <- data %>%
+  group_by(school, currentSchoolMusic) %>%
+  summarise(count = n()) %>%
+  group_by(school) %>%
+  mutate(percentage = count/sum(count)*100)
+ 
+ #Frequency
+ data %>% 
+  group_by(school, currentSchoolMusic) %>% 
+  summarise(n = n()) %>% 
+  pivot_wider(names_from = currentSchoolMusic,
+              values_from = n)
+
+
+
+ggplot(percentages, aes(fill=currentSchoolMusic, y=percentage, x=school)) + 
+    geom_bar(position="stack", stat="identity") + 
+  geom_text(aes(label = paste0(round(percentage), "%")), 
+            position = position_stack(vjust = 0.5), 
+            size = 3, 
+            color = "grey", 
+            fontface = "bold") +
+    scale_fill_viridis(discrete = T) +
+    theme_ipsum() +
+    labs(x = "School", y = "%", fill = "School Music Electives")
+```
+
+#### Are the observed frequencies in elective participation by school significantly different from expected frequencies in the distribution?
+
+```{r}
+#  Chi-square test
+chisq_result <- chisq.test(table(data$school, data$currentSchoolMusic))
+
+chisq_result
+
+# Adjusted residuals
+adjusted_residuals <- residuals(chisq_result, type = "pearson")
+
+# Convert adjusted residuals to a matrix format
+adjusted_residuals_matrix <- matrix(adjusted_residuals, nrow = nrow(chisq_result$observed))
+
+# Reshaping data for ggplot
+library(reshape2)
+adjusted_residuals_df <- melt(adjusted_residuals_matrix)
+
+# Renaming levels in Var1 and Var2
+adjusted_residuals_df$Var1 <- factor(adjusted_residuals_df$Var1, levels = c("1", "2", "3"), labels = c("A", "B", "C"))
+
+adjusted_residuals_df$Var2 <- factor(adjusted_residuals_df$Var2, levels = c("1", "2", "3", "4"), labels = c("Band", "Choir", "No music", "Other music"))
+
+
+# Creating a heatmap of adjusted residuals
+ggplot(data = adjusted_residuals_df, aes(x = Var2, y = Var1, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  theme_minimal() +
+  labs(x = "School Music Electives", y = "School", fill = "Adjusted Residuals")
+
+ggplot(data = adjusted_residuals_df, aes(x = Var2, y = Var1, fill = value)) +
+    geom_tile() +
+    scale_fill_viridis() +
+    theme_minimal() +
+    labs(x = "School Music Ellectives", y = "School", fill = "Adjusted Residuals")
+```
+
+```{r}
+# Chi-square test 2
+chisq_result2 <- chisq.test(table(data$school, data$school_music_elective))
+
+chisq_result2
+
+# Extract adjusted residuals
+adjusted_residuals2 <- residuals(chisq_result2, type = "pearson")
+
+# Convert adjusted residuals to a matrix format
+adjusted_residuals_matrix2 <- matrix(adjusted_residuals2, nrow = nrow(chisq_result2$observed),)
+
+# Reshape data for ggplot
+adjusted_residuals_df2 <- melt(adjusted_residuals_matrix2)
+
+# Rename levels in Var1 and Var2
+adjusted_residuals_df2$Var1 <- factor(adjusted_residuals_df2$Var1, levels = c("1", "2", "3"), labels = c("A", "B", "C"))
+
+adjusted_residuals_df2$Var2 <- factor(adjusted_residuals_df2$Var2, levels = c("1", "2"), labels = c("No", "Yes"))
+
+# Create a heatmap of adjusted residuals
+ggplot(data = adjusted_residuals_df2, aes(x = Var2, y = Var1, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  theme_minimal() +
+  labs(x = "School Music Elective", y = "School", fill = "Adjusted Residuals")
+
+```
+
+### Participation in Electives by School
+
+```{r}
+#Participation in electives by school 
+table(data$school,data$currentSchoolMusic)
+
+chisq.test(table(data$school,data$currentSchoolMusic))
+
+#Participation in MUSIC electives by schools
+table(data$school,data$school_music_elective)
+
+chisq.test(table(data$school,data$school_music_elective))
+```
+
+The ratio of students enrolled in music electives varied significantly across schools.
+
+```{r}
+# Perform Chi-square test
+chisq_result2 <- chisq.test(table(data$school, data$school_music_elective))
+
+chisq_result2
+
+# Extract adjusted residuals
+adjusted_residuals2 <- residuals(chisq_result2, type = "pearson")
+
+# Reshape data for ggplot
+#adjusted_residuals2_df <- melt(adjusted_residuals2_matrix)
+
+# Create a heatmap of adjusted residuals
+#ggplot(data = adjusted_residuals2_df, aes(x = Var2, y = Var1, fill = value)) +
+  #geom_tile() +
+  #scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+ # theme_minimal() +
+ # labs(x = "Current School Music", y = "School", fill = "Adjusted Residuals")
+
+
+```
+
+# Measures
+
+## Global Music Self-Concept
+
+```{r}
+
+describe(data$msc_full)
+```
+
+Participants' Global MSC scores ranged from `r min(data$msc_full)` to `r max(data$msc_full)` (in the present study, the possible range was 6-112). The average MSC score was `r mean(data$msc_full)` with standard deviation of `r sd(data$msc_full)`. @tbl-msc_covariate shows descriptive analysis of msc scores per for each covariate.
+
+## Ability Music Self-Concept
+
+```{r}
+describe(data$musical_ability_msc)
+
+```
+
+Summary of Outcomes
+
+```{r}
+
+summary_outcomes <- describe(data[, c("msc_full", "musical_ability_msc", "msc_no_ability")])
+
+gt(summary_outcomes)
+```
+
+## **Summary of Measures**
+
+Global MSC scores ranged from `r min(data$msc_full)` to `r max(data$msc_full)` (M=`r mean(data$msc_full)` , SD= `r sd(data$msc_full)`).
+
+Ability MSC scores ranged from `r min(data$musical_ability_msc)` to `r max(data$musical_ability_msc)` (M=`r mean(data$musical_ability_msc)` , SD= `r sd(data$musical_ability_msc)`).
+
+Active Engagement scores ranged from `r min(data$active_engagement)` to `r max(data$active_engagement)` (M=`r mean(data$active_engagement)` , SD= `r sd(data$active_engagement)`).
+
+Musical Training scores ranged from `r min(data$musical_training)` to `r max(data$musical_training)` (M=`r mean(data$musical_training)` , SD= `r sd(data$musical_training)`).
+
+## Global Music Self-Concept Scores per Categorical Variable
+
+```{r}
+
+#grade
+data %>%
+  group_by(grade) %>%
+  summarize(
+    n = n(),
+    '%' = n() / nrow(data) * 100,
+    min = min(msc_full),
+    max = max(msc_full),
+    range = max(msc_full) - min(msc_full),
+    mean = mean(msc_full),
+    std = sd(msc_full))
+  
+#race
+data %>%
+  group_by(race) %>%
+  summarize(
+    n = n(),
+    '%' = n() / nrow(data) * 100,
+    min = min(msc_full),
+    max = max(msc_full),
+    range = max(msc_full) - min(msc_full),
+    mean = mean(msc_full),
+    std = sd(msc_full))
+
+#ethnicity
+data %>%
+  group_by(hispanic_latino) %>%
+  summarize(
+    n = n(),
+    '%' = n() / nrow(data) * 100,
+    min = min(msc_full),
+    max = max(msc_full),
+    range = max(msc_full) - min(msc_full),
+    mean = mean(msc_full),
+    std = sd(msc_full))
+
+#gender
+data %>%
+  group_by(gender) %>%
+  summarize(
+    n = n(),
+    '%' = n() / nrow(data) * 100,
+    min = min(msc_full),
+    max = max(msc_full),
+    range = max(msc_full) - min(msc_full),
+    mean = mean(msc_full),
+    std = sd(msc_full))
+
+#musicElective
+data %>%
+  group_by(school_music_elective) %>%
+  summarize(
+    n = n(),
+    '%' = n() / nrow(data) * 100,
+    min = min(msc_full),
+    max = max(msc_full),
+    range = max(msc_full) - min(msc_full),
+    mean = mean(msc_full),
+    std = sd(msc_full))
+
+#musicElectiveType
+data %>%
+  group_by(currentSchoolMusic) %>%
+  summarize(
+    n = n(),
+    '%' = n() / nrow(data) * 100,
+    min = min(msc_full),
+    max = max(msc_full),
+    range = max(msc_full) - min(msc_full),
+    mean = mean(msc_full),
+    std = sd(msc_full))
+
+#family music background
+data %>%
+  group_by(familyMusic) %>%
+  summarize(
+    n = n(),
+    '%' = n() / nrow(data) * 100,
+    min = min(msc_full),
+    max = max(msc_full),
+    range = max(msc_full) - min(msc_full),
+    mean = mean(msc_full),
+    std = sd(msc_full))
+
+#school
+data %>%
+  group_by(school) %>%
+  summarize(
+    n = n(),
+    '%' = n() / nrow(data) * 100,
+    min = min(msc_full),
+    max = max(msc_full),
+    range = max(msc_full) - min(msc_full),
+    mean = mean(msc_full),
+    std = sd(msc_full))
+```
+
+## Academic Music Self-Concept Scores Per School
+
+```{r}
+#school
+data %>%
+  group_by(school) %>%
+  summarize(
+    n = n(),
+    '%' = n() / nrow(data) * 100,
+    min = min(musical_ability_msc),
+    max = max(musical_ability_msc),
+    mean = mean(musical_ability_msc),
+    std = sd(musical_ability_msc))
+```
+
+## Histogram
+
+```{r}
+
+data %>% 
+  ggplot( aes(x=msc_full)) +
+    geom_histogram(binwidth = 4, fill = "#4E2A84", color = "#B6ACD1", alpha= 0.9) +
+  ggtitle("MSC Distribution") +
+    theme_ipsum()  +
+    theme(plot.title = element_text(size=15)
+    )
+
+data %>% 
+  select(active_engagement_z:msc_full_z) %>% 
+  multi.hist() +
+    theme_ipsum()
+
+data %>% 
+  select(schoolChoir:selfTaught) %>% 
+  multi.hist() +
+    theme_ipsum()
+```
+
+Analysis of histogram for all numeric covariates showed a normal distribution for all.

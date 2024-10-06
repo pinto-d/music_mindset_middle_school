@@ -1,0 +1,1324 @@
+---
+title: "Regression Analysis"
+author: Diego Pinto
+format: html
+toc: true
+code-fold: true
+code-tools: true
+theme:
+  light: cosmo
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Set Up
+
+```{r}
+
+# Set working directory path
+setwd("~/Desktop/R_projects/msc")
+
+# Clear Global Environment
+rm(list = ls()) 
+
+# Load packages
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(hrbrthemes)
+library(psych)
+library(corrr)
+library(lm.beta)
+library (jtools)
+library(broom.mixed)
+library(car)
+
+# Read .csv file into a tibble
+data <- read_csv("data/middle_school_music_mindsets_clean_partial.csv")
+```
+
+```{r}
+
+#reclassify character variables as factors
+
+reclassFactor <- c("grade","school","race","hispanic_latino","gender","currentSchoolMusic","familyMusic")
+
+data[reclassFactor] <- lapply(data[reclassFactor], as.factor)
+```
+
+```{r}
+
+# Reorder the levels for currentSchoolMusic and set "No music" as the reference level
+data$currentSchoolMusic <- relevel(data$currentSchoolMusic, ref = "No music")
+```
+
+# Preliminary Analyses
+
+## Multicollinearity - VIF (Variance Inflation Factors)
+
+I explored the predictors' variance using Variance Inflation Factors (VIF) to identify potential collinearity. I followed the same steps for the three models (three different outcome variables).
+
+### Global MSC as outcome - VIF (Variance Inflation Factors)
+
+```{r}
+
+#VIF - All 17 predictors
+car::vif(lm(formula = msc_full ~ growth_mindset  +
+                   active_engagement + musical_training + currentSchoolMusic + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data))
+```
+
+------------------------------------------------------------------------
+
+Based on these results, musical_training, currentSchoolMusic, and schoolInstrumental should not be included in the model together due to their potential multicollinearity. To solve this issue, I removed one by one starting with the one with highest VIF, currentSchoolMusic.
+
+```{r}
+
+#VIF - After removing currentSchoolMusic
+car::vif(lm(formula = msc_full ~ growth_mindset  +
+                   active_engagement + musical_training + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data))
+```
+
+------------------------------------------------------------------------
+
+After removing currentSchoolMusic, VIF values for musical_training and schoolInstrumental are lower, but musical_training still hows high.
+
+```{r}
+
+#VIF - After removing currentSchoolMusic and musical_training 
+car::vif(lm(formula = msc_full ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data))
+```
+
+------------------------------------------------------------------------
+
+After removing currentSchoolMusic and musical_training, there seems to be no collinearity between the predictors. Hence,I will not include those variables in the model.
+
+### Ability MSC as coutcome - VIF (Variance Inflation Factors)
+
+```{r}
+
+#VIF - All 17 predictors
+car::vif(lm(formula = musical_ability_msc ~ growth_mindset  +
+                   active_engagement + musical_training + currentSchoolMusic + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data))
+```
+
+------------------------------------------------------------------------
+
+Similar to the previous model, musical_training, currentSchoolMusic, and schoolInstrumental should not be included in the model together due to their potential multicollinearity. To solve this issue, I removed one by one starting with the one with highest VIF, currentSchoolMusic.
+
+```{r}
+
+#VIF - After removing currentSchoolMusic
+car::vif(lm(formula = musical_ability_msc ~ growth_mindset  +
+                   active_engagement + musical_training + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data))
+```
+
+------------------------------------------------------------------------
+
+After removing currentSchoolMusic, VIF values for musical_training and schoolInstrumental are lower, but musical_training still hows high.
+
+```{r}
+
+#VIF - After removing currentSchoolMusic and musical_training 
+car::vif(lm(formula = musical_ability_msc ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data))
+```
+
+------------------------------------------------------------------------
+
+After removing currentSchoolMusic and musical_training, there seems to be no collinearity between the predictors. Hence,I will not include those variables in the model.
+
+### Non-Academic MSC as Outcome - VIF (Variance Inflation Factors)
+
+```{r}
+
+#VIF - All 17 predictors
+car::vif(lm(formula = msc_no_ability ~ growth_mindset  +
+                   active_engagement + musical_training + currentSchoolMusic + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data))
+```
+
+------------------------------------------------------------------------
+
+Consistent with the first two models, musical_training, currentSchoolMusic, and schoolInstrumental should not be included in the model together due to their potential multicollinearity. To solve this issue, I removed one by one starting with the one with highest VIF, currentSchoolMusic.
+
+```{r}
+
+#VIF - After removing currentSchoolMusic
+car::vif(lm(formula = msc_no_ability ~ growth_mindset  +
+                   active_engagement + musical_training + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data))
+```
+
+------------------------------------------------------------------------
+
+After removing currentSchoolMusic, VIF values for musical_training and schoolInstrumental are lower, but musical_training still hows high.
+
+```{r}
+
+#VIF - After removing currentSchoolMusic and musical_training 
+car::vif(lm(formula = msc_no_ability ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data))
+```
+
+------------------------------------------------------------------------
+
+After removing currentSchoolMusic and musical_training, there seem to be no collinearity between the predictors. Hence,I will not include those variables in the model.
+
+{{< pagebreak >}}
+
+# Assumptions
+
+Before building the linear regression models, I examined assumptions of linearity, homoscedasticity, and other assumptions. I also examine if using the music self-concept composite score as an outcome would yield different results compared to the musical ability/music self-concept subscale.
+
+```{r}
+#Global MSC Final Model
+final_model_msc_full <- lm(formula = msc_full ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data)
+
+#Ability MSC Final Model
+final_model_msc_ability <- lm(formula = musical_ability_msc ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data)
+
+#No Ability MSC Final Model
+final_model_msc_no_ability <- lm(formula = msc_no_ability ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data)
+```
+
+### Normality
+
+### Q-Q Plot
+
+```{r}
+qqPlot(final_model_msc_full)
+
+qqPlot(final_model_msc_ability)
+
+qqPlot(final_model_msc_no_ability)
+```
+
+### Kolmogorov-Smirnov
+
+```{r}
+# Global MSC
+ks.test(residuals(lm(formula = msc_full ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data)), "pnorm")
+
+#Ability MSC
+
+ks.test(residuals(lm(formula = musical_ability_msc ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data)), "pnorm")
+
+#No Ability MSC
+ks.test(residuals(lm(formula =  msc_no_ability ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data)), "pnorm")
+```
+
+### Shapiro-Wilk
+
+```{r}
+# Global MSC
+shapiro.test(residuals(lm(formula = msc_full ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data)))
+
+#Ability MSC
+
+shapiro.test(residuals(lm(formula = musical_ability_msc ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data)))
+
+#No Ability MSC
+shapiro.test(residuals(lm(formula =  msc_no_ability ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data)))
+```
+
+Kolmogorov-Smirnov and Shapiro- Wilk tests showed that the data follows a nonnormal distribution. Individual examination of each variables' skewnewss and kurtosis identify three variables, but the distribution was not extreme.
+
+# Stepwise Multiple Linear Regression
+
+I conducted a series of linear regression models to examine the relationships between multiple predictors and each of the three outcome variables, global MSC, ability MSC, and non-academic MSC. The aim was to address the research questions gradually, facilitating the interpretability of the findings by assessing the influence of successive categories of predictors on the models' improvement. I conducted the same steps and used the same predictors for each outcome variable.
+
+On Step 1, I introduced mindset of music ability as the sole predictor.
+
+To investigate the impact of various types of music engagement on music self-concept, I introduced two sets of variables in the following steps. Step 2 included active engagement, whereas Step 3 comprised variables related to duration of engagement in music activities in and out of school.
+
+In the following and final step (Step 4), I introduced background variables like grade, school, race, ethnicity, gender, and family music background.
+
+## GLOBAL MSC - Stepwise Multiple Linear Regression
+
+### Intercept
+
+```{r}
+
+#Intercept
+lm_msc_full_step_0 <- lm(formula = msc_full ~ 1, data = data)
+
+summary(lm_msc_full_step_0)
+```
+
+------------------------------------------------------------------------
+
+### Step 1
+
+```{r}
+
+#Step 1
+lm_msc_full_step_1 <- lm(formula = msc_full ~ growth_mindset,  data = data)
+
+summary_lm_msc_full_step_1 <- summary(lm_msc_full_step_1)
+
+summary_lm_msc_full_step_1
+```
+
+------------------------------------------------------------------------
+
+Mindset of music ability significantly predicted global MSC, explaining 27% of its variance (adjusted *R^2^* = `r round(summary_lm_msc_full_step_1$adj.r.squared,4)`, *p* \< .01).
+
+### Step 2
+
+```{r}
+
+#Step 2
+lm_msc_full_step_2 <- lm(formula = msc_full ~ growth_mindset  +
+                   active_engagement,  data = data)
+
+summary_lm_msc_full_step_2 <- summary(lm_msc_full_step_2)
+
+summary_lm_msc_full_step_2
+
+# Calculate model fit improvement
+f_test_result_lm_msc_full_1_2 <- anova(lm_msc_full_step_1, lm_msc_full_step_2)
+
+f_test_result_lm_msc_full_1_2
+```
+
+------------------------------------------------------------------------
+
+In step 2, active engagement emerged as a significant predictor, collectively contributing to 62% of the variance in MSC (adjusted *R^2^* = `r round(summary_lm_msc_full_step_2$adj.r.squared,4)`, *p* \< .001 ). The addition of these variables significantly improved the model, *F* = `r round(f_test_result_lm_msc_full_1_2$F[2],2)`, *p* \< .001).
+
+### Step 3
+
+```{r}
+
+#Step 3
+lm_msc_full_step_3 <- lm(formula = msc_full ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + 
+                   outsideChoir + outsideInstrumental + 
+                   privateLesson + selfTaught,  data = data)
+
+summary_lm_msc_full_step_3 <- summary(lm_msc_full_step_3)
+
+summary_lm_msc_full_step_3
+
+# Calculate model fit improvement
+f_test_result_lm_msc_full_2_3 <- anova(lm_msc_full_step_2, lm_msc_full_step_3)
+
+f_test_result_lm_msc_full_2_3
+```
+
+------------------------------------------------------------------------
+
+The refined model explained 65% of the variance in music self-concept (adjusted *R^2^* = `r round(summary_lm_msc_full_step_3$adj.r.squared,4)`, p \< .01), representing a significant fit improvement, *F* = `r round(f_test_result_lm_msc_full_2_3$F[2],2)`, *p* \< .001).
+
+### Step 4
+
+```{r}
+
+#Step 4
+lm_msc_full_step_4 <- lm(formula = msc_full ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data)
+
+summary_lm_msc_full_step_4 <- summary(lm.beta(lm_msc_full_step_4))
+
+summary_lm_msc_full_step_4
+
+# Calculate model fit improvement
+f_test_result_lm_msc_full_3_4 <- anova(lm_msc_full_step_3, lm_msc_full_step_4)
+
+f_test_result_lm_msc_full_3_4
+```
+
+------------------------------------------------------------------------
+
+In the new model, gender was a significant predictor of global music self-concept, with male students differing significantly from female students (reference group). This extended model explained 68% of the variation in music self-concept (adjusted *R^2^* = `r round(summary_lm_msc_full_step_4$adj.r.square,4)`, *p* = .049), showing a significantly superior fit compared to the previous model (*F =* `r round(f_test_result_lm_msc_full_3_4$F[2],2)`, *p* \< .01).
+
+### Results Table
+
+```{r}
+
+#RESULTS TABLE Global MSC
+
+# Extract coefficients and statistics
+results_lm_msc_full <- bind_rows(broom::tidy(lm.beta(lm_msc_full_step_4), conf.int = TRUE)
+)
+
+# Round output to two decimal points
+results_lm_msc_full$estimate <- round(results_lm_msc_full$estimate,2)
+
+results_lm_msc_full$std_estimate <- round(results_lm_msc_full$std_estimate,3)
+
+results_lm_msc_full$std.error <- round(results_lm_msc_full$std.error,2)
+
+results_lm_msc_full$statistic <- round(results_lm_msc_full$statistic,2)
+
+results_lm_msc_full$p.value <- round(results_lm_msc_full$p.value,3)
+
+results_lm_msc_full$conf.low <- round(results_lm_msc_full$conf.low,2)
+
+results_lm_msc_full$conf.high <- round(results_lm_msc_full$conf.high,2)
+
+
+# Combine conf.low and conf.high into a single column called "95% CI" and change column names
+results_lm_msc_full <- results_lm_msc_full %>%
+  mutate("95% CI" = paste0("[", conf.low, ", ", conf.high, "]")) %>%
+  select(-conf.low, -conf.high) %>%   # Remove the original conf.low and conf.high columns
+  rename(b = estimate, 
+         β = std_estimate,
+           SE = std.error,
+         t = statistic,
+         p = p.value)
+
+# Change order of columns
+results_lm_msc_full <- results_lm_msc_full %>% 
+  select(term, b, SE, β, t, "95% CI", p)
+
+
+# Change output for p values undeer .001
+results_lm_msc_full <- results_lm_msc_full %>% 
+  mutate(p = ifelse(p < 0.001, "<.001", p))
+
+# Change predictors' names
+results_lm_msc_full <- results_lm_msc_full %>% 
+  mutate(term = case_match(term, 
+                      "(Intercept)" ~ "(Intercept)",
+                      "growth_mindset" ~ "Growth mindset", 
+                      "active_engagement" ~ "Active Engagement",
+                      "schoolChoir" ~ "School choir",
+                      "schoolInstrumental" ~ "School instrumental",
+                      "schoolExtracurricular" ~ "School music club",
+                      "outsideChoir" ~ "Choir (outside school)",
+                      "outsideInstrumental" ~ "instrumental (outside school)",
+                      "privateLesson" ~ "Private lesson",
+                      "selfTaught" ~ "Self-teaching",
+                      "grade7" ~ "Grade 7",
+                      "grade8" ~ "Grade 8",
+                      "schoolB" ~ "School B",
+                      "schoolC" ~ "School C",
+                      "familyMusicYes" ~ "Family music engagement",
+                      "raceBlack or African American" ~ "Black or African American",
+                      "raceSome Other Race" ~ "Other race",
+                      "raceTwo or More Races" ~ "Two or more races",
+                      "raceWhite" ~ "White",
+                      "hispanic_latinoYes" ~ "Ethnicity",
+                      "genderMale" ~ "Male",
+                      "genderNon-Binary" ~ "Non-Binary",
+                      "genderPrefer not to say" ~ "Gender not disclosed")
+                      )
+
+print(results_lm_msc_full, n= 100)
+
+```
+
+------------------------------------------------------------------------
+
+### Overall Significance
+
+```{r}
+#Calculate overall significance/fit
+
+f_test_result_lm_msc_full_0_4 <- anova(lm_msc_full_step_0, lm_msc_full_step_4)
+
+f_test_result_lm_msc_full_0_4
+```
+
+------------------------------------------------------------------------
+
+The overall significance of the final model was confirmed through the F-test (*F =* `r round(f_test_result_lm_msc_full_0_4$F[2],2)`, *p* \< .01).
+
+### Post Hoc Analyses
+
+#### Equality of coefficients (Wald Test)
+
+Although several predictors showed significant effect on the outcome, their coefficient may or may not differ from each other significantly. To examine if the differences between the coefficients (as observed in values of *b* and β ) are significant, I visually inspected those coefficients.
+
+```{r}
+#Visually compare coefficients
+lm_full <- lm(formula = msc_full ~ growth_mindset + active_engagement + selfTaught + gender, data = data)
+
+jtools::plot_summs(lm_full)
+```
+
+------------------------------------------------------------------------
+
+Visual inspection of the data suggests coefficients for mindset of music ability, active engagement, and self-teaching may not be significantly different. Hence, I investigated further by conducting Wald Tests between each pair of predictors.
+
+```{r}
+
+wt_mindset_active <- linearHypothesis(lm_full, "growth_mindset  = active_engagement ")
+
+wt_mindset_active
+
+```
+
+------------------------------------------------------------------------
+
+```{r}
+
+wt_mindset_selfTaught <- linearHypothesis(lm_full, "growth_mindset  = selfTaught ")
+
+wt_mindset_selfTaught
+```
+
+------------------------------------------------------------------------
+
+```{r}
+
+wt_active_selfTaught <- linearHypothesis(lm_full, "active_engagement  = selfTaught ")
+
+wt_active_selfTaught
+```
+
+------------------------------------------------------------------------
+
+Wald tests results indicated that the difference in coefficients between mindset of music ability and active engagement, mindset of music abilty and self-teaching, and active engagement and self-teaching were not statistically significant, suggesting those predictors had the same effect on students' global music self-concept.
+
+#### Joint Significance (Wald Test)
+
+```{r}
+
+wt_gender <- lmtest::waldtest(lm_full, term = "gender")
+
+print(wt_gender)
+```
+
+------------------------------------------------------------------------
+
+I employed the Wald test once more to delve deeper into the joint significance of the gender variable. The results showed a significant difference between the model incorporating gender and the one excluding it, *F* = `r wt_gender$F[2]`, *p* = \< .01. This finding indicates that gender stands as a significant predictor of music self-concept, underscoring its importance in the predictive model.
+
+### Scatter Plots
+
+```{r}
+
+#scatter plots with fitted regression lines
+plot1_full <- ggplot(data, aes(x = growth_mindset_z,  y = msc_full_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Mindset of Music Ability",
+       y = "Overall") +
+  theme_ipsum()
+
+plot2_full <- ggplot(data, aes(x = active_engagement_z,  y = msc_full_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Active Engagement",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+
+
+plot3_full <- ggplot(data, aes(x = selfTaught_z,  y = msc_full_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Self-Teaching",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+
+plot4_full <- ggplot(data, aes(x = schoolExtracurricular_z,  y = msc_full_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Extracurricular School Music Clubs",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+
+#Combine plots into a single display (grid layout)
+grid.arrange(plot1_full, plot2_full, plot3_full, plot4_full, ncol = 2)
+```
+
+------------------------------------------------------------------------
+
+## ACADEMIC MSC (Music Ability Only) - Stepwise Multiple Linear Regression
+
+### Intercept
+
+```{r}
+#Intercept
+lm_msc_ability_step_0 <- lm(formula = musical_ability_msc ~ 1, data = data)
+
+summary(lm_msc_ability_step_0)
+```
+
+------------------------------------------------------------------------
+
+### Step 1
+
+```{r}
+#Step 1
+lm_msc_ability_step_1 <- lm(formula = musical_ability_msc ~ growth_mindset,  data = data)
+
+summary_lm_msc_ability_step_1 <- summary(lm_msc_ability_step_1)
+
+summary_lm_msc_ability_step_1
+```
+
+------------------------------------------------------------------------
+
+### Step 2
+
+```{r}
+#Step 2
+lm_msc_ability_step_2 <- lm(formula = musical_ability_msc ~ growth_mindset  +
+                   active_engagement,  data = data)
+
+summary_lm_msc_ability_step_2 <- summary(lm_msc_ability_step_2)
+
+summary_lm_msc_ability_step_2
+
+# Calculate model fit improvement
+f_test_result_lm_msc_ability_1_2 <- anova(lm_msc_ability_step_1, lm_msc_ability_step_2)
+
+f_test_result_lm_msc_ability_1_2
+```
+
+------------------------------------------------------------------------
+
+### Step 3
+
+```{r}
+#Step 3
+lm_msc_ability_step_3 <- lm(formula = musical_ability_msc ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + 
+                   outsideChoir + outsideInstrumental + 
+                   privateLesson + selfTaught,  data = data)
+
+summary_lm_msc_ability_step_3 <- summary(lm_msc_ability_step_3)
+
+summary_lm_msc_ability_step_3
+
+# Calculate model fit improvement
+f_test_result_lm_msc_ability_2_3 <- anova(lm_msc_ability_step_2, lm_msc_ability_step_3)
+
+f_test_result_lm_msc_ability_2_3
+```
+
+------------------------------------------------------------------------
+
+### Step 4
+
+```{r}
+
+#Step 4
+lm_msc_ability_step_4 <- lm(formula = musical_ability_msc ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  +
+                   grade + school + familyMusic + race + hispanic_latino + gender, data = data)
+
+summary_lm_msc_ability_step_4 <- summary(lm.beta(lm_msc_ability_step_4))
+
+summary_lm_msc_ability_step_4
+
+# Calculate model fit improvement
+f_test_result_lm_msc_ability_3_4 <- anova(lm_msc_ability_step_3, lm_msc_ability_step_4)
+
+f_test_result_lm_msc_ability_3_4
+
+```
+
+------------------------------------------------------------------------
+
+### Results Table
+
+```{r}
+#RESULTS TABLE: Ability MSC
+
+# Extract coefficients and statistics
+results_lm_msc_ability <- bind_rows(broom::tidy(lm.beta(lm_msc_ability_step_4), conf.int = TRUE)
+)
+
+
+# Round output to two decimal points
+results_lm_msc_ability$estimate <- round(results_lm_msc_ability$estimate,2)
+
+results_lm_msc_ability$std_estimate <- round(results_lm_msc_ability$std_estimate,2)
+
+results_lm_msc_ability$std.error <- round(results_lm_msc_ability$std.error,2)
+
+results_lm_msc_ability$statistic <- round(results_lm_msc_ability$statistic,2)
+
+results_lm_msc_ability$p.value <- round(results_lm_msc_ability$p.value,3)
+
+results_lm_msc_ability$conf.low <- round(results_lm_msc_ability$conf.low,2)
+
+results_lm_msc_ability$conf.high <- round(results_lm_msc_ability$conf.high,2)
+
+
+# Combine conf.low and conf.high into a single column called "95% CI" and change column names
+results_lm_msc_ability <- results_lm_msc_ability %>%
+  mutate("95% CI" = paste0("[", conf.low, ", ", conf.high, "]")) %>%
+  select(-conf.low, -conf.high) %>%   # Remove the original conf.low and conf.high columns
+  rename(b = estimate, 
+         β = std_estimate,
+           SE = std.error,
+         t = statistic,
+         p = p.value)
+
+# Change order of columns
+results_lm_msc_ability <- results_lm_msc_ability %>% 
+  select(term, b, SE, β, t, "95% CI", p)
+
+
+# Change output for p values undeer .001
+results_lm_msc_ability <- results_lm_msc_ability %>% 
+  mutate(p = ifelse(p < 0.001, "<.001", p))
+
+# Change predictors' names
+results_lm_msc_ability <- results_lm_msc_ability %>% 
+  mutate(term = 
+           case_match(term, 
+                      "(Intercept)" ~ "(Intercept)",
+                      "growth_mindset" ~ "Growth mindset", 
+                      "active_engagement" ~ "Active Engagement",
+                      "schoolChoir" ~ "School choir",
+                      "schoolInstrumental" ~ "School instrumental",
+                      "schoolExtracurricular" ~ "School music club",
+                      "outsideChoir" ~ "Choir (outside school)",
+                      "outsideInstrumental" ~ "instrumental (outside school)",
+                      "privateLesson" ~ "Private lesson",
+                      "selfTaught" ~ "Self-teaching",
+                      "grade7" ~ "Grade 7",
+                      "grade8" ~ "Grade 8",
+                      "schoolB" ~ "School B",
+                      "schoolC" ~ "School C",
+                      "familyMusicYes" ~ "Family music engagement",
+                      "raceBlack or African American" ~ "Black or African American",
+                      "raceSome Other Race" ~ "Other race",
+                      "raceTwo or More Races" ~ "Two or more races",
+                      "raceWhite" ~ "White",
+                      "hispanic_latinoYes" ~ "Ethnicity",
+                      "genderMale" ~ "Male",
+                      "genderNon-Binary" ~ "Non-Binary",
+                      "genderPrefer not to say" ~ "Gender not disclosed")
+                      )
+
+print(results_lm_msc_ability, n= 100)
+```
+
+------------------------------------------------------------------------
+
+### Overall Significance
+
+```{r}
+#overall significance/fit
+f_test_result_lm_msc_ability_0_4 <- anova(lm_msc_ability_step_0, lm_msc_ability_step_4)
+
+f_test_result_lm_msc_ability_0_4
+```
+
+------------------------------------------------------------------------
+
+### Interaction (Growth Mindset X Skills-Related Music Engagement Activities)
+
+```{r}
+#Add interactions calculation to lm_msc_ability_step_4
+lm_msc_ability_interactions <- lm(formula = musical_ability_msc ~ growth_mindset  + active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  + grade + school + familyMusic + race + hispanic_latino + gender +
+                                    growth_mindset:schoolChoir + #interactions
+                                    growth_mindset:schoolInstrumental +
+                                    growth_mindset:schoolExtracurricular  +
+                                    growth_mindset:outsideChoir  +
+                                    growth_mindset:outsideInstrumental  +
+                                    growth_mindset:privateLesson  +
+                                    growth_mindset:selfTaught, data = data)
+
+summary_lm_msc_ability_interactions <- summary(lm.beta(lm_msc_ability_interactions))
+
+summary(lm_msc_ability_interactions)
+
+# Calculate model fit improvement
+f_test_result_lm_msc_ability_4_interactions <- anova(lm_msc_ability_step_4, lm_msc_ability_interactions)
+
+f_test_result_lm_msc_ability_4_interactions
+```
+
+```{r}
+#Edit previous model to only include significant interactions (growth_mindset*schoolInstrumental)
+lm_msc_ability_interactions_short <- lm(formula = musical_ability_msc ~ growth_mindset  + active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  + grade + school + familyMusic + race + hispanic_latino + gender +
+                                          growth_mindset:schoolInstrumental, data = data)
+
+summary_lm_msc_ability_interactions_short <- summary(lm.beta(lm_msc_ability_interactions_short))
+
+summary(lm_msc_ability_interactions_short)
+
+# Calculate model fit improvement
+f_test_result_lm_msc_ability_4_interactions_short <- anova(lm_msc_ability_step_4, lm_msc_ability_interactions_short)
+
+f_test_result_lm_msc_ability_4_interactions_short
+```
+
+```{r}
+#Interaction plot, Source: https://cran.r-project.org/web/packages/interactions/vignettes/interactions.html
+library(interactions)
+library(jtools) # for summ()
+
+#states <- as.data.frame(state.x77)
+fiti <- lm(musical_ability_msc ~ growth_mindset  + active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  + grade + school + familyMusic + race + hispanic_latino + gender + growth_mindset:schoolInstrumental, data = data)
+
+summ(fiti)
+
+#Plot
+
+interact_plot(fiti, pred = growth_mindset, modx = schoolInstrumental, x.label = "Mindset of Music Ability", y.label = "Academic Music Self-Concept", legend.main = "School Instrumental Ensemble")
+
+interact_plot(fiti, pred = schoolInstrumental, modx = growth_mindset, x.label = "School Instrumental", y.label = "Academic Music Self-Concept", legend.main = "Mindset of Music Ability")
+```
+
+### Post Hoc Analyses
+
+#### Equality of coefficients (Wald Test)
+
+```{r}
+#Visually compare coefficients
+library (jtools)
+library(broom.mixed)
+
+lm_ability <- lm(formula = musical_ability_msc ~ growth_mindset + active_engagement + schoolInstrumental + schoolExtracurricular + privateLesson + selfTaught + grade + school + gender, data = data)
+
+jtools::plot_summs(lm_ability)
+```
+
+------------------------------------------------------------------------
+
+Visual inspection of the data suggests coefficients for mindset of music ability, active engagement, school instrumental ensemble, extracurricular school music club, private lesson, and self-teaching may not be significantly different. Hence, I investigated further by conducting Wald Tests between each pair of predictors.
+
+```{r}
+library(car)
+
+wt_ability_mindset_active <- linearHypothesis(lm_ability, "growth_mindset  = active_engagement ")
+
+wt_ability_mindset_active
+
+```
+
+------------------------------------------------------------------------
+
+```{r}
+wt_ability_mindset_schoolInstrumental <- linearHypothesis(lm_ability, "growth_mindset  = schoolInstrumental ")
+
+wt_ability_mindset_schoolInstrumental
+```
+
+------------------------------------------------------------------------
+
+```{r}
+
+wt_ability_mindset_schoolExtracurricular <- linearHypothesis(lm_ability, "growth_mindset  = schoolExtracurricular ")
+
+wt_ability_mindset_schoolExtracurricular
+```
+
+------------------------------------------------------------------------
+
+```{r}
+
+wt_ability_mindset_privateLesson <- linearHypothesis(lm_ability, "growth_mindset  = privateLesson ")
+
+wt_ability_mindset_privateLesson
+```
+
+------------------------------------------------------------------------
+
+```{r}
+wt_ability_mindset_selfTaught <- linearHypothesis(lm_ability, "growth_mindset  = selfTaught ")
+
+wt_ability_mindset_selfTaught
+```
+
+------------------------------------------------------------------------
+
+```{r}
+wt_ability_active_schoolInstrumental <- linearHypothesis(lm_ability, "active_engagement  = schoolInstrumental ")
+
+wt_ability_active_schoolInstrumental
+```
+
+------------------------------------------------------------------------
+
+```{r}
+wt_ability_active_schoolExtracurricular <- linearHypothesis(lm_ability, "active_engagement  = schoolExtracurricular ")
+
+wt_ability_active_schoolExtracurricular
+```
+
+------------------------------------------------------------------------
+
+```{r}
+wt_ability_active_privateLesson <- linearHypothesis(lm_ability, "active_engagement  = privateLesson ")
+
+wt_ability_active_privateLesson
+```
+
+------------------------------------------------------------------------
+
+```{r}
+
+wt_ability_active_selfTaught <- linearHypothesis(lm_ability, "active_engagement  = selfTaught ")
+
+wt_ability_active_selfTaught
+```
+
+------------------------------------------------------------------------
+
+```{r}
+wt_ability_schoolInstrumental_schoolExtracurricular <- linearHypothesis(lm_ability, "schoolInstrumental  = schoolExtracurricular ")
+
+wt_ability_schoolInstrumental_schoolExtracurricular
+```
+
+------------------------------------------------------------------------
+
+```{r}
+wt_ability_schoolInstrumental_privateLesson <- linearHypothesis(lm_ability, "schoolInstrumental  = privateLesson ")
+
+wt_ability_schoolInstrumental_privateLesson
+```
+
+------------------------------------------------------------------------
+
+```{r}
+wt_ability_schoolInstrumental_selfTaught <- linearHypothesis(lm_ability, "schoolInstrumental  = selfTaught ")
+
+wt_ability_schoolInstrumental_selfTaught
+```
+
+------------------------------------------------------------------------
+
+```{r}
+wt_ability_schoolExtra_privateLesson <- linearHypothesis(lm_ability, "schoolExtracurricular  = privateLesson ")
+
+wt_ability_schoolExtra_privateLesson
+```
+
+------------------------------------------------------------------------
+
+```{r}
+wt_ability_schoolExtral_selfTaught <- linearHypothesis(lm_ability, "schoolExtracurricular  = selfTaught ")
+
+wt_ability_schoolExtral_selfTaught
+```
+
+------------------------------------------------------------------------
+
+```{r}
+wt_ability_private_selfTaught <- linearHypothesis(lm_ability, "privateLesson  = selfTaught ")
+
+wt_ability_private_selfTaught
+```
+
+------------------------------------------------------------------------
+
+Wald tests results indicated that the difference in coefficients between mindset of music ability and extracurricular school music club, mindset of music ability and private lesson, active engagement and extracurricular school music club, active engagement and self-teaching, school instrumental ensemble and self-teaching, and private lesson and self-teaching were not statistically significant, suggesting those predictors had the same effect on students' global music self-concept. Coefficients for all other pairs were statistically different from each other.
+
+#### Joint Significance (Wald Test)
+
+```{r}
+
+wt_ability_grade <- lmtest::waldtest(lm_ability, term = "grade")
+
+wt_ability_grade
+```
+
+------------------------------------------------------------------------
+
+```{r}
+wt_ability_school <- lmtest::waldtest(lm_ability, term = "school")
+
+wt_ability_school
+```
+
+------------------------------------------------------------------------
+
+```{r}
+wt_ability_gender <- lmtest::waldtest(lm_ability, term = "gender")
+
+wt_ability_gender
+```
+
+------------------------------------------------------------------------
+
+### Scatter Plots
+
+```{r }
+
+#scatter plots with fitted regression lines
+plot1_ability <- ggplot(data, aes(x = growth_mindset_z,  y = musical_ability_msc_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Mindset of Music Ability",
+       y = "Ability Music Self-Concept") +
+  theme_ipsum()
+
+plot2_ability <- ggplot(data, aes(x = active_engagement_z,  y = musical_ability_msc_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Active Engagement",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+
+plot3_ability <- ggplot(data, aes(x = selfTaught_z,  y = musical_ability_msc_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Self-Teaching",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+
+plot4_ability <- ggplot(data, aes(x = schoolExtracurricular_z,  y = musical_ability_msc_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Extracurricular School Music Club",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+
+plot5_ability <- ggplot(data, aes(x = schoolInstrumental_z,  y = musical_ability_msc_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "School Instrumental Ensemble",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+
+plot6_ability <- ggplot(data, aes(x = privateLesson_z,  y = musical_ability_msc_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Private Lesson",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+
+#Combine plots into a single display (grid layout)
+grid.arrange(plot1_ability, plot2_ability, plot3_ability, plot4_ability, plot5_ability, plot6_ability, ncol = 2)
+```
+
+### Alternative Scatter Plots Option
+
+```{r}
+#ALTERNATIVE TEST
+
+#scatter plots with fitted regression lines
+ggplot(data, aes(x = growth_mindset_z,  y = musical_ability_msc_z, color = school_music_elective)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(title = "Ability Music Self-Concept ~ Mindset of Music Ability",
+       x = "Mindset of Music Ability",
+       y = "Ability Music Self-Concept",
+       color = "Enrolled in music elective?") +
+  theme_ipsum()
+
+ggplot(data, aes(x = active_engagement_z,  y = musical_ability_msc_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Active Engagement",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+
+ggplot(data, aes(x = selfTaught_z,  y = musical_ability_msc_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Self-Teaching",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+
+ggplot(data, aes(x = schoolExtracurricular_z,  y = musical_ability_msc_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Extracurricular School Music Club",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+
+plot5_ability <- ggplot(data, aes(x = schoolInstrumental_z,  y = musical_ability_msc_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "School Instrumental Ensemble",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+```
+
+------------------------------------------------------------------------
+
+## NON-ACADEMIC MSC - Stepwise Multiple Linear Regression
+
+### Intercept
+
+```{r}
+#Intercept
+lm_msc_no_ability_step_0 <- lm(formula = msc_no_ability ~ 1, data = data)
+
+lm_msc_no_ability_step_0
+```
+
+------------------------------------------------------------------------
+
+### Step 1
+
+```{r}
+#Step 1
+lm_msc_no_ability_step_1 <- lm(formula = msc_no_ability ~ growth_mindset,  data = data)
+
+summary_lm_msc_no_ability_step_1 <- summary(lm_msc_no_ability_step_1)
+
+summary_lm_msc_no_ability_step_1
+```
+
+------------------------------------------------------------------------
+
+### Step 2
+
+```{r}
+#Step 2
+lm_msc_no_ability_step_2 <- lm(formula = msc_no_ability ~ growth_mindset  +
+                   active_engagement,  data = data)
+
+summary_lm_msc_no_ability_step_2 <- summary(lm_msc_no_ability_step_2)
+
+summary_lm_msc_no_ability_step_2
+
+# Calculate model fit improvement
+f_test_result_lm_msc_no_ability_1_2 <- anova(lm_msc_no_ability_step_1, lm_msc_no_ability_step_2)
+
+f_test_result_lm_msc_no_ability_1_2
+```
+
+------------------------------------------------------------------------
+
+### Step 3
+
+```{r}
+#Step 3
+lm_msc_no_ability_step_3 <- lm(formula = msc_no_ability ~ growth_mindset  +
+                   active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + 
+                   outsideChoir + outsideInstrumental + 
+                   privateLesson + selfTaught,  data = data)
+
+summary_lm_msc_no_ability_step_3 <- summary(lm_msc_no_ability_step_3)
+
+summary_lm_msc_no_ability_step_3
+
+# Calculate model fit improvement
+f_test_result_lm_msc_no_ability_2_3 <- anova(lm_msc_no_ability_step_2, lm_msc_no_ability_step_3)
+
+f_test_result_lm_msc_no_ability_2_3
+```
+
+------------------------------------------------------------------------
+
+### Step 4
+
+```{r}
+
+#Step 4
+lm_msc_no_ability_step_4 <- lm(formula = msc_no_ability ~ growth_mindset  + active_engagement + schoolChoir + schoolInstrumental + schoolExtracurricular + outsideChoir + outsideInstrumental + privateLesson + selfTaught  + grade + school + familyMusic + race + hispanic_latino + gender, data = data)
+
+summary_lm_msc_no_ability_step_4 <- summary(lm.beta(lm_msc_no_ability_step_4))
+
+summary_lm_msc_no_ability_step_4
+
+# Calculate model fit improvement
+f_test_result_lm_msc_no_ability_3_4 <- anova(lm_msc_no_ability_step_3, lm_msc_no_ability_step_4)
+
+f_test_result_lm_msc_no_ability_3_4
+
+```
+
+------------------------------------------------------------------------
+
+### Results Table
+
+```{r}
+#RESULTS TABLE Non-Academic MSC
+
+# Extract coefficients and statistics
+results_lm_msc_no_ability <- bind_rows(broom::tidy(lm.beta(lm_msc_no_ability_step_4), conf.int = TRUE)
+)
+
+
+# Round output to two decimal points
+results_lm_msc_no_ability$estimate <- round(results_lm_msc_no_ability$estimate,2)
+
+results_lm_msc_no_ability$std_estimate <- round(results_lm_msc_no_ability$std_estimate,2)
+
+results_lm_msc_no_ability$std.error <- round(results_lm_msc_no_ability$std.error,2)
+
+results_lm_msc_no_ability$statistic <- round(results_lm_msc_no_ability$statistic,2)
+
+results_lm_msc_no_ability$p.value <- round(results_lm_msc_no_ability$p.value,3)
+
+results_lm_msc_no_ability$conf.low <- round(results_lm_msc_no_ability$conf.low,2)
+
+results_lm_msc_no_ability$conf.high <- round(results_lm_msc_no_ability$conf.high,2)
+
+
+# Combine conf.low and conf.high into a single column called "95% CI" and change column names
+results_lm_msc_no_ability <- results_lm_msc_no_ability %>%
+  mutate("95% CI" = paste0("[", conf.low, ", ", conf.high, "]")) %>%
+  select(-conf.low, -conf.high) %>%   # Remove the original conf.low and conf.high columns
+  rename(b = estimate, 
+         β = std_estimate,
+           SE = std.error,
+         t = statistic,
+         p = p.value)
+
+# Change order of columns
+results_lm_msc_no_ability <- results_lm_msc_no_ability %>% 
+  select(term, b, SE, β, t, "95% CI", p)
+
+
+# Change output for p values undeer .001
+results_lm_msc_no_ability <- results_lm_msc_no_ability %>% 
+  mutate(p = ifelse(p < 0.001, "<.001", p))
+
+# Change predictors' names
+results_lm_msc_no_ability <- results_lm_msc_no_ability %>% 
+  mutate(term = 
+           case_match(term, 
+                      "(Intercept)" ~ "(Intercept)",
+                      "growth_mindset" ~ "Growth mindset", 
+                      "active_engagement" ~ "Active Engagement",
+                      "schoolChoir" ~ "School choir",
+                      "schoolInstrumental" ~ "School instrumental",
+                      "schoolExtracurricular" ~ "School music club",
+                      "outsideChoir" ~ "Choir (outside school)",
+                      "outsideInstrumental" ~ "instrumental (outside school)",
+                      "privateLesson" ~ "Private lesson",
+                      "selfTaught" ~ "Self-teaching",
+                      "grade7" ~ "Grade 7",
+                      "grade8" ~ "Grade 8",
+                      "schoolB" ~ "School B",
+                      "schoolC" ~ "School C",
+                      "familyMusicYes" ~ "Family music engagement",
+                      "raceBlack or African American" ~ "Black or African American",
+                      "raceSome Other Race" ~ "Other race",
+                      "raceTwo or More Races" ~ "Two or more races",
+                      "raceWhite" ~ "White",
+                      "hispanic_latinoYes" ~ "Ethnicity",
+                      "genderMale" ~ "Male",
+                      "genderNon-Binary" ~ "Non-Binary",
+                      "genderPrefer not to say" ~ "Gender not disclosed")
+                      )
+
+print(results_lm_msc_no_ability, n= 100)
+```
+
+------------------------------------------------------------------------
+
+### Overall Significance
+
+```{r}
+#overall significance
+
+f_test_result_lm_msc_no_ability_0_4 <- anova(lm_msc_no_ability_step_0, lm_msc_no_ability_step_4)
+
+print(f_test_result_lm_msc_no_ability_0_4) 
+```
+
+------------------------------------------------------------------------
+
+### Post Hoc Analyses
+
+#### Equality of coefficients (Wald Test)
+
+```{r}
+#Visually compare coefficients
+library (jtools)
+library(broom.mixed)
+
+lm <- lm(formula = msc_no_ability ~ growth_mindset + active_engagement + selfTaught + gender, data = data)
+
+jtools::plot_summs(lm)
+```
+
+------------------------------------------------------------------------
+
+Visual inspection of the data suggests coefficients for mindset of music ability, active engagement, and self-teaching may not be significantly different. Hence, I investigated further by conducting Wald Tests between each pair of predictors.
+
+```{r}
+library(car)
+
+wt_mindset_active <- linearHypothesis(lm, "growth_mindset  = active_engagement ")
+
+wt_mindset_active
+
+```
+
+------------------------------------------------------------------------
+
+```{r}
+
+wt_mindset_selfTaught <- linearHypothesis(lm, "growth_mindset  = selfTaught ")
+
+wt_mindset_selfTaught
+```
+
+------------------------------------------------------------------------
+
+```{r}
+
+wt_active_selfTaught <- linearHypothesis(lm, "active_engagement  = selfTaught ")
+
+wt_active_selfTaught
+```
+
+------------------------------------------------------------------------
+
+Wald tests results indicated statistical difference between the coefficients of mindset of music ability and self-teaching, suggesting they had the same effect on students' global music self-concept. Coefficients between the dyads mindset of music ability/active engagement and active engagement/self-teaching were statistically different from each other.
+
+#### Joint Significance (Wald Test)
+
+```{r}
+
+wt_gender <- lmtest::waldtest(lm, term = "gender")
+
+print(wt_gender)
+```
+
+------------------------------------------------------------------------
+
+### Scatter Plots
+
+```{r}
+
+#scatter plots with fitted regression lines
+plot1_no_ability <- ggplot(data, aes(x = growth_mindset_z,  y = msc_no_ability_z)) + 
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Mindset of Music Ability",
+       y = "Non-Academic Music Self-Concept") +
+  theme_ipsum()
+
+plot2_no_ability <- ggplot(data, aes(x = active_engagement_z,  y = msc_no_ability_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Active Engagement",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+
+plot3_no_ability <- ggplot(data, aes(x = selfTaught_z,  y = msc_no_ability_z)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE)  +
+  labs(x = "Self-Teaching",
+       y = "Global Music Self-Concept") +
+  theme_ipsum()
+
+#Combine plots into a single display (grid layout)
+grid.arrange(plot1_no_ability, plot2_no_ability, plot3_no_ability, ncol = 2)
+```
+
+------------------------------------------------------------------------

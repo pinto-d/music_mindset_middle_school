@@ -1,0 +1,243 @@
+---
+title: "Missing Values"
+format: html
+code-fold: true
+code-tools: true
+editor_options: 
+  chunk_output_type: console
+---
+
+# Dealing with missing values
+
+```{r}
+setwd("~/Desktop/R_projects/msc")
+
+
+rm(list = ls()) # Clear Global Environment
+
+library(tidyverse)
+library(naniar)
+library("mice") #for multiple imputation
+```
+
+```{r}
+data <- read_csv("data/middle_school_music_mindsets_clean_2_careless_removed.csv")
+```
+
+## Analyzing missing values
+
+### What is the ratio of missing values in the entire dataset?
+
+```{r}
+
+missing_sum <- sum(is.na(data)) #sum of all missing values
+
+data_points_count <- nrow(data) * ncol(data) #number of datapoints in the datafrae
+
+missing_percentage <- missing_sum /data_points_count #percentage of all missing values
+
+print(missing_percentage)
+```
+
+The dataset contained `r missing_sum` missing data points, which corresponds to `r sprintf("%.2f%%", missing_percentage * 100)` of the entire data set.
+
+### What section of the survey contains the most missing values?
+
+#### Save section of survey into separate dataframes for following calculations:
+
+```{r}
+data_demographic <- data %>% 
+  select(survey_id:currentSchoolMusic) #demographic variables, except currentSchoolMusic_other
+
+s1 <- data %>% 
+  select(matches("s1")) #section 1 (Likert 1-4)
+
+s2 <- data %>% 
+  select(matches("s2")) #section 2 (Likert 1-7, mostly)
+
+s3 <- data %>% 
+  select(matches("s3")) #section 3 (Likert 1-4)
+
+measures_data <- data %>%
+  select(s1_1:s3_28) %>%
+  select_if(is.numeric) #sections 1, 2, and 3 combined, excluding variables with character data (i.e., instrument_play_best).
+
+#data_family_subset <- filter(data, is.na(data$s2_8))
+
+#survey_id <- data$survey_id
+```
+
+#### Calculate missing values per survey section
+
+```{r}
+#missing values in demographic questions
+demographics_missing_rate <- (sum(is.na.data.frame(data_demographic))) / (nrow(data_demographic) * ncol(data_demographic))
+
+#missing values in sections 1
+s1_missing_rate <- (sum(is.na.data.frame(s1))) / (nrow(s1) * ncol(s1))
+
+#missing values in section 2 (s21_:s2)
+s2_missing_rate <- (sum(is.na.data.frame(s2))) / (nrow(s2) * ncol(s2))
+
+#missing values in sections 3
+s3_missing_rate <- (sum(is.na.data.frame(s3))) / (nrow(s3) * ncol(s3))
+
+
+
+```
+
+The rate of missing data per survey section was as follow:
+
+• Demographics: `r sprintf("%.2f%%", demographics_missing_rate * 100)`
+
+• Section 1: `r sprintf("%.2f%%", s1_missing_rate * 100)`
+
+• Section 2: `r sprintf("%.2f%%", s2_missing_rate * 100)`
+
+• Section 3: `r sprintf("%.2f%%", s3_missing_rate * 100)`
+
+The demographic section has highest rate of missing values. Still, that rate is below 5%.
+
+### What is the rate of missing values per item?
+
+```{r}
+#Calculate is.na for each item. Add results to new dataframe
+
+missing_per_item <- sapply(data, function(x) sum(is.na(x)))
+
+missing_per_item_df <- data.frame(missing_count = missing_per_item, 
+                                  missing_rate = round(missing_per_item/ nrow(data),2))
+
+select(missing_per_item_df, missing_rate)
+```
+
+Most relevant items (e.g., mindets, msc, and other psychometric measures) had low rate of missing values (\<- 4%). Excluding items was not necessary. Because "age" had a high number of missing values (`r sprintf("%.2f%%", missing_per_item_df["age", "missing_rate"] * 100)`), I will not include that variable in the data analysis (except for descriptive analysis).
+
+Because currentSchoolMusic_other column only applies to students who selected taking "another music class" besides band, choir, or orchestra, most participants did not fill that blank and, thus, most NA are not missing data. Moreover, "age" had a high rate of missing values. To facilitate imputation, I will only use variables with missing values rate below 5%. Therefore, I removed "age" and "currentSchoolMusic_other from the dataset.
+
+```{r}
+data <- data %>% 
+  select(-age, -currentSchoolMusic_other)
+```
+
+### How many observations do not contain missing values and how many do (after removing careless responses)?
+
+```{r}
+
+complete_cases <- sum(complete.cases(data))
+
+print(complete_cases)
+
+incomplete_cases <- sum(!complete.cases(data))
+
+print(incomplete_cases)
+```
+
+After removing observation with potential careless responding, `r complete_cases` observation did not contain missing values in any variable.
+
+Although data are missing in `r sprintf("%.2f%%", incomplete_cases/nrow(data) * 100)` of observations, there are some outliers with rates of missing data much higher than most, as seen in the chart below:
+
+```{r}
+
+# Calculate is.na for each observatoin. Add results to new dataframe.
+missing_per_obs_df <- data %>% 
+  mutate(across(everything(), as.character)) %>% 
+  rowwise() %>% 
+  summarize(
+    survey_id,
+    missing_count = sum(is.na(c_across(everything()))),
+    missing_rate = round(missing_count / ncol(data), 2),)
+
+#View scatterplot to visually identify outliers
+plot(missing_per_obs_df$missing_rate, main = "Scatterplot of Rate of with Missing Values per Observation", xlab = "Observations", ylab = "missing values rate", pch = 16, col = "blue", ylim = c(0, 1)) 
+```
+
+#### Flag observations with high rate of missing values.
+
+To address those outliers, I flagged observations in which missing data accounted for more than 40% of the responses.
+
+```{r}
+#Create dataframe with observations containing 10%+ of missing values
+missing_per_obs_high <- missing_per_obs_df %>% 
+  filter(missing_rate > .4)
+
+#Save flagged observations to vector
+flagged_obs <- as.numeric(missing_per_obs_high$survey_id)
+
+print(flagged_obs)
+
+flagged_obs_df <- data %>% 
+  filter(survey_id %in% flagged_obs)
+```
+
+During this step, only observations `r nrow(flagged_obs_df)` were flagged.
+
+### 
+
+## Removing or Imputing Observations
+
+#### Remove surveys with high rate of missing values
+
+```{r}
+
+sum(!is.na(flagged_obs)) # number of observations removed
+
+data <- data %>% 
+  filter(!survey_id %in% flagged_obs) #keep only observations not flagged due to high rate of missing data
+
+dim(data) #New dimension of dataset after flagged observations removed
+
+```
+
+Based on the rate of missing data per observation (above 40%)), I removed `r sum(!is.na(flagged_obs))` observations from the dataset.
+
+### Little's (1988) Test of Missingness
+
+I calculated Little's Test of Missing to determine the nature of missing data (i.e., MCAR, MAR, MNAR), thus suggesting whether manipulating missing data (deleting or imputing) in the remainder of the dataset would significantly affect data analysis. The following are Little's test's hypotheses:
+
+H0: Data is missing completely at random (MCAR)
+
+H1: Data is missing at random (MAR)
+
+H2: Data is missing not a random (MNAR)
+
+```{r}
+
+mcar_test <- mcar_test(data)
+
+print(mcar_test)
+```
+
+Based on the results from Little's Test of Missingness, we fail to reject the null hypothesis. Hence, missing values are likely missing completely at random (MCAR), and data imputation should not significantly alter the results.
+
+## Multiple Imputation by Chained Equations
+
+```{r}
+md.pattern(data)
+
+imputed_data <- mice(data, m = 5, method = "rf")
+
+summary(imputed_data)
+
+imputed_dataset <- complete(imputed_data)
+
+#Update number of complete and incomplete cases
+
+complete_cases <- sum(complete.cases(imputed_dataset))
+
+print(complete_cases)
+
+incomplete_cases <- sum(!complete.cases(imputed_dataset))
+
+print(incomplete_cases)
+
+imputed_dataset <- imputed_dataset %>% 
+filter(complete.cases(imputed_dataset))
+
+```
+
+After imputing data using the "mice" function the number of complete cases increased to `r complete_cases`, and `r incomplete_cases` observations still contained missing data. Hence, I removed those observations from the data set.
+
+```{r}
+write_csv(imputed_dataset, "data/middle_school_music_mindsets_clean_3_imputed.csv")
+```

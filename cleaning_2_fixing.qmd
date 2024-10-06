@@ -1,0 +1,227 @@
+---
+title: "cleaning_fixing"
+format: html
+code-fold: true
+code-tools: true
+editor_options: 
+  chunk_output_type: console
+---
+
+# Fixing the Dataset
+
+```{r message=FALSE, warning=FALSE}
+setwd("~/Desktop/R_projects/msc")
+
+rm(list = ls()) # Clear Global Environment
+
+library(tidyverse)
+library(careless) #https://rdrr.io/cran/careless/
+```
+
+```{r}
+data <- read_csv("data/middle_school_music_mindsets_clean_1_formated.csv")
+```
+
+## Replace Bad Data
+
+Replacing invalid responses with NA rather than excluding observations with missing values altogether should help with statistical analysis while salvaging as many observations as possible. According to Goldammer et al. (2020), "Treating carelessly given responses as missing values leaves the sample intact."
+
+### Dealing with answers with more than one digit in Likert scales
+
+There were cases in the paper surveys where participants selected more than one option in the multiple-choice or Likert scale. Because participants' answers in the spreadsheet were entered as they answered on paper, some cells in the spreadsheet had a more than one answer separated by a comma. Numeric entries containing comma (e.g., 3,4) in the original .csv file appeared as double-digit answers in loaded the .csv document in R (e.g., 34) unless the column type was assigned as character (in that case, it would appear as "3,4"; this output was common in the "race" column, but in that case participants were allowed to give more than one answer). To find entries in the Likert-scale items that received more than one answer, I looked accross columns with numeric data for numbers with more than one digit (greater or equal to 10).
+
+```{r}
+
+view(data %>%
+  summarise(across(where(is.numeric), ~max(., na.rm = TRUE))))
+```
+
+To solve the issue with invalid responses in the Likert scales, I replaced answers greater or equal to 10 with NA.
+
+```{r}
+data <- data %>%
+  mutate(across(s1_1:s3_28 & where(is.numeric), ~ ifelse(. >= 10, NA, .)))
+
+
+```
+
+A review of numeric columns' MAX answer confirmed the output only contains answers within the pre-establish scale are used (e.g, 1-4 for section 1 and 3, 1-7 for section 2)
+
+```{r}
+max_answers <- data %>%
+  summarise(across(where(is.numeric), ~max(., na.rm = TRUE))) #inspeact if range is correct but looking at the highest answer per column
+
+view(max_answers)
+```
+
+## Save each section of the survey into separate dataframes
+
+To facilitate careless reponding analyses in each section of the survey, I saved each section into separate variables.
+
+```{r}
+
+data_demographic <- data %>% 
+  select(1:9) #demographic variables
+
+s1 <- data %>% 
+  select(matches("s1")) #section 1 (Likert 1-4)
+
+s2 <- data %>% 
+  select(matches("s2")) #section 2 (Likert 1-7, mostly)
+
+s3 <- data %>% 
+  select(matches("s3")) #section 3 (Likert 1-4)
+
+data$familyMusic <- as.factor(data$familyMusic)
+
+measures_data <- data %>%
+  select(s1_1:s3_28) %>%
+  select_if(is.numeric) #sections 1, 2, and 3 combined, excluding variables with character data (i.e., instrument).
+
+survey_id <- data$survey_id
+```
+
+## Identifying and Dealing with Carelessness Responding
+
+I followed the recommendations in Ward and Meade (2023) for dealing with careless responding. Consistent with the authors recommendations for "minimal screening" (p. 591), I identifed the longstring index and within-person variance (invariance analysis) and the Mahalanobis distance (multivariate oulier analysis) to identify potential careless responding patterns. After flagging observations during each analysis, I excluded flagged responses from the dataset.
+
+### Longstring
+
+I focused on sections 1 and 3 of the survey to identify longstring. I chose those sections because they both contain items that will later be reverse (Items with negative scoring).
+
+In section 1 of the survey, the negative items are in questions s1_5, s1_11, and s1_13. Thus, the longest one could go before encountering a negative items would be between items s1_1 and s1_4 (4-item string). Responses with 5 or more repeated answers are likely to be longstring because it would the answers would contradict themselves.
+
+```{r}
+
+longstr_s1 <- longstring(s1, avg = TRUE)
+
+mean_longstr_s1 <- longstr_s1 %>% 
+  summarise(mean(longstr, na.rm = TRUE))
+
+sd_longstr_s1 <- longstr_s1 %>% 
+  summarise(sd(longstr, na.rm = TRUE))
+
+longstr_s1 <- longstr_s1 %>%
+  mutate(flagged_longstr_s1 = longstr >= 5) %>% #Come back and make sure NA are considered TRUE.
+    rename(longstr_s1 = longstr,
+         avgstr_s1 = avgstr)
+```
+
+In survey section 1, longstring analysis showed that the above restrictions applied to `r sum(longstr_s1$flagged_longstr_s1)` observations.
+
+Similarly, in section 3 of the survey, items s3_14, s3_16, and s3_21 are scored negatively. Here, answer strings of 14 or longer might represent careless responding.
+
+```{r}
+longstr_s3 <- longstring(s3, avg = TRUE)
+
+mean_longstr_s3 <- longstr_s3 %>% 
+  summarise(mean(longstr, na.rm = TRUE))
+
+sd_longstr_s3 <- longstr_s3 %>% 
+  summarise(sd(longstr, na.rm = TRUE))
+
+print (mean_longstr_s3)
+print(sd_longstr_s3)
+
+
+longstr_s3 <- longstr_s3 %>%
+  mutate(flagged_longstr_s3 = longstr >= 14, ) %>% 
+    rename(longstr_s3 = longstr,
+         avgstr_s3 = avgstr)
+```
+
+In survey section 3, longstrig parameters applied to `r sum(longstr_s3$flagged_longstr_s3)` observations.
+
+### Invariance analysis (within-person variance)
+
+After calculating the standard deviation across each observation for "measures" (s1 through s3), I created a dataframe where one column is the vector "irv_measures" and a second column is a logical column considering if the values in "irv_measures" are greater or equal to 2 standard deviations above the mean of "irv_measures" or less than or equal to w standard deviations below de mean of "irv_measures."
+
+```{r}
+
+irv_measures <- irv(measures_data, na.rm = TRUE)
+
+#calculate mean and standard deviation or the standard deviations (irv)
+mean_irv_measures <- mean(irv_measures, na.rm = TRUE)
+sd_irv_measures <- sd(irv_measures, na.rm = TRUE)
+
+#define the upper and lower threashold for outlier (outside 2 sd above or below mean of standard deviations (irv)) (see Van Selst and Jolicoeur, 1994, for outlier elimination based on sd)
+upper_threshold <- mean_irv_measures + 2 * sd_irv_measures
+lower_threshold <- mean_irv_measures - 2 * sd_irv_measures
+
+# flagged observations as outliers based on threadshold
+flagged_irv_measures <- irv_measures >= upper_threshold | irv_measures <= lower_threshold
+
+#created dataframe containing irv and 
+irv_measures <- data.frame(irv_measures = irv_measures, flagged_irv_measures = flagged_irv_measures)
+
+```
+
+Following this approached, `r sum(irv_measures$flagged_irv_measures == TRUE, na.rm = TRUE)` were flagged.
+
+### Multivariate Outlier analysis (Mahalanobis distance)
+
+```{r}
+mahad <- mahad(measures_data, flag = TRUE)
+
+mahad <- mahad %>%
+  rename(mahad_sq = d_sq, flagged_mahad = flagged)
+
+```
+
+Based on the Mahalanobis Distance, `r sum(mahad$flagged_mahad, na.rm = TRUE)` observations were flagged as potential outliers.
+
+### Consistency indicators (Not necessary for minimal screening of careless responding)
+
+## Exclude Flagged Observations
+
+My first strategy to exclude observation with potential careless responding was to identify those that did not pass any of analyses.
+
+```{r}
+#combine dataframes of all careless responding analyses
+careless_responding_analyses <- bind_cols(survey_id = survey_id, longstr_s1, longstr_s3, irv_measures, mahad)
+
+#filter observations flagged by all careless responding analyses
+flagged_data <- careless_responding_analyses %>% 
+  filter(flagged_longstr_s1 == TRUE,
+         flagged_longstr_s3 == TRUE,
+         flagged_irv_measures == TRUE,
+         flagged_mahad == TRUE)
+
+dim(flagged_data)
+
+```
+
+Because `r nrow(flagged_data)` observations were flagged in all processes,I decided to considering using OR instead of AND. Thus, I excluded observations flagged by any of the careless responding methods. This is also the most appropriate because reasons for careless responding my vary, thus manifesting in different ways or different sections of the survey.
+
+```{r}
+
+flagged_data <- careless_responding_analyses %>%
+  filter(
+    flagged_longstr_s1 | 
+    flagged_longstr_s3 | 
+    flagged_irv_measures | 
+    flagged_mahad
+  )
+
+#Consider the following: (longstr_s1 OR longstr_s3 OR irv) AND mahalanobis outlier  
+
+dim(flagged_data)
+
+flagged_ids <- flagged_data$survey_id
+```
+
+This approach showed that `r nrow(flagged_data)` observations have characteristics consistent with careless responding in at least 1 of the analysis strategies. Thus, I removed those observation from the final data analysis.
+
+```{r}
+
+data_careless_removed <- data %>%
+  filter(!survey_id %in% flagged_ids)
+```
+
+Interestingly, one observation (survey_id 482) had missing data in most variables (`r sum(is.na(data[482,]))/ncol(data)`).
+
+NOTE FOR LATER: Must review careless responding analyses to understand how NA values were handled in each case and consider adapting. For instance, in longstring, NA values could be converted to "0" (zero) so the analysis can identify it as a value.
+
+```{r}
+write.csv(data_careless_removed, "data/middle_school_music_mindsets_clean_2_careless_removed.csv", row.names = FALSE)
+```

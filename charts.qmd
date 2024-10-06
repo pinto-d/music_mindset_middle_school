@@ -1,0 +1,346 @@
+---
+title: "Data Viz"
+format: html
+code-fold: true
+code-tools: true
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+
+setwd("~/Desktop/R_projects/msc")
+
+
+rm(list = ls()) # Clear Global Environment
+
+library(ggplot2)
+library(tidyverse)
+library(hrbrthemes)
+library(dplyr)
+library(tidyr)
+library(viridis)
+library(cowplot)
+library(gridExtra)
+library(psych)
+
+```
+
+## Set Up
+
+```{r}
+data <- read_csv("data/middle_school_music_mindsets_clean_full.csv")
+
+data <- filter(data, complete.cases(data)) #only complete cases
+```
+
+```{r}
+#Creating binary variable for enrollment in music electives
+data <- data %>% 
+  mutate(school_music_elective = ifelse(currentSchoolMusic == "No music", "No", "Yes"))
+```
+
+## Density Plots
+
+```{r}
+
+ggplot(data=data, aes(x=msc_full, 
+                      group=currentSchoolMusic, 
+                      fill=currentSchoolMusic)) +
+    geom_density(adjust=1.5, alpha=.4) +
+    theme_ipsum()  +
+    ggtitle("Enrollment by Elective Class")
+```
+
+```{r}
+ggplot(data=data, aes(x=msc_full, 
+                      group=school_music_elective, 
+                      fill=school_music_elective)) +
+    geom_density(adjust=1.5, alpha=.4) +
+    theme_ipsum()  +
+    ggtitle("Global Music Self-Concept by Elective Category")
+```
+
+```{r}
+ggplot(data=data, aes(x=musical_ability_msc, 
+                      group=school_music_elective, 
+                      fill=school_music_elective)) +
+    geom_density(adjust=1.5, alpha=.4) +
+    theme_ipsum()  +
+    ggtitle("Academic Music Self-Concept by Elective Category")
+  
+```
+
+```{r}
+ggplot(data=data, aes(x=msc_no_ability, 
+                      group=school_music_elective, 
+                      fill=school_music_elective)) +
+    geom_density(adjust=1.5, alpha=.4) +
+    theme_ipsum()  +
+    ggtitle("Non-Academic Music Self-Concept by Elective Category")
+```
+
+```{r}
+
+ggplot(data=data, aes(x=msc_full, 
+                      group=currentSchoolMusic, 
+                      fill=currentSchoolMusic)) +
+    geom_density(adjust=1.5) +
+    theme_ipsum() +
+    facet_wrap(~currentSchoolMusic) +
+    theme(legend.position="none",
+          panel.spacing = unit(0.1, "lines"),
+          axis.ticks.x=element_blank()
+    ) +
+  ggtitle ("Enrollment by Elective Class")
+```
+
+```{r}
+
+mindset_plot_with_legend <- ggplot(data = data, aes(x = growth_mindset, 
+                        group = school_music_elective, 
+                        fill = school_music_elective)) +
+  geom_density(adjust = 1.5, alpha = .8) +
+  scale_fill_manual(values = c("No" = "#4E2A84", "Yes" = "#E4E0EE")) +
+  theme_ipsum() +
+  labs(x = "Mindset of Music Ability", fill = "Enrolled in School Music?") +
+  theme(legend.position = "bottom", legend.margin = margin(l = -10, unit = "pt"))
+
+```
+
+```{r}
+mindset_plot <- ggplot(data = data, aes(x = growth_mindset, 
+                        group = school_music_elective, 
+                        fill = school_music_elective)) +
+  geom_density(alpha = .8) + #removed "adjust = 1.5" to show more nuance on the density line
+  scale_fill_manual(values = c("No" = "#4E2A84", "Yes" = "#E4E0EE")) +
+  theme_ipsum() +
+  labs(x = "Mindset of Music Ability", fill = "Enrolled in School Music?")  +
+  theme(legend.position = "none", plot.title = element_text(size = 10))
+```
+
+```{r}
+active_engagement_plot <- ggplot(data = data, aes(x = active_engagement, 
+                        group = school_music_elective, 
+                        fill = school_music_elective)) +
+  geom_density(alpha = .8) +  #removed "adjust = 1.5" to show more nuance on the density line
+  scale_fill_manual(values = c("No" = "#4E2A84", "Yes" = "#E4E0EE")) +
+  theme_ipsum() +
+  labs(x = "Active Engagement", fill = "Enrolled in School Music?") +
+  theme(legend.position = "none", plot.title = element_text(size = 10))
+```
+
+```{r}
+#Combine plots
+combined_plot <- grid.arrange(mindset_plot, active_engagement_plot, ncol = 2)
+```
+
+```{r}
+# plot1 with modified legend
+plot1_legend <- ggplot(data, 
+                       aes(x = growth_mindset, y = school_music_elective, col = school_music_elective)) + 
+  geom_point(size = 4) + 
+  scale_color_manual(values = c("No" = "#4E2A84", "Yes" = "#E4E0EE"), name = "Enrolled in School Music?") +
+  theme(legend.position = "bottom")
+
+# function to extract legend from plot
+get_only_legend <- function(plot) { 
+  plot_table <- ggplot_gtable(ggplot_build(plot))
+  legend_plot <- which(sapply(plot_table$grobs, function(x) x$name) == "guide-box")
+  legend <- plot_table$grobs[[legend_plot]]
+  return(legend)
+}
+
+# extracting modified legend from plot1 using the above function
+legend <- get_only_legend(plot1_legend)
+
+# final combined plot with shared modified legend
+grid.arrange(combined_plot, legend, nrow = 2, heights = c(10, 1))
+
+```
+
+## Histogram
+
+```{r}
+data %>% 
+  ggplot( aes(x=msc_full)) +
+    geom_histogram(binwidth = 4, fill = "#4E2A84", color = "#B6ACD1", alpha= 0.9) +
+  ggtitle("Global Music Self-Concept") +
+    theme_ipsum()  +
+    theme(plot.title = element_text(size=15)
+    )
+```
+
+```{r}
+#Distribution of Music Self-Concept Subscales and Mindset
+data %>% 
+  select(active_engagement_z:msc_full_z) %>% 
+  multi.hist() +
+    theme_ipsum()
+```
+
+```{r}
+#Distribution of Music Participation Variables
+data %>% 
+  select(schoolChoir:selfTaught) %>% 
+  multi.hist() +
+    theme_ipsum()
+```
+
+```{r}
+filtered_data <- subset(data, school_music_elective == "Yes")
+
+ggplot(filtered_data, aes(x = growth_mindset)) +
+  geom_histogram(binwidth = 1, fill = "#4E2A84", color = "white", alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "Mindset of Students Enrolled in Elective Music Classes",
+       x = "Mindset Score",
+       y = "Frequency")
+```
+
+## Box Plot
+
+```{r}
+
+data %>%
+  ggplot( aes(x=currentSchoolMusic, y=msc_full, fill=currentSchoolMusic)) +
+    geom_boxplot() +
+    scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+    geom_jitter(color="black", size=0.4, alpha=0.9) +
+    theme_ipsum() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    ggtitle("Distribution by Elective Class") +
+    xlab("")
+```
+
+## Violin Plots
+
+```{r}
+
+data %>%
+  ggplot( aes(x=currentSchoolMusic, y=msc_full, fill=currentSchoolMusic)) +
+    geom_violin() +
+    scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+    geom_jitter(color="black", size=0.4, alpha=0.9) +
+    theme_ipsum() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    ggtitle("Global Music Self-Concept per Elective Class") +
+    xlab("")
+```
+
+```{r}
+data %>%
+  ggplot( aes(x=currentSchoolMusic, y=musical_ability_msc, fill=currentSchoolMusic)) +
+    geom_violin() +
+    scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+    geom_jitter(color="black", size=0.4, alpha=0.9) +
+    theme_ipsum() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    ggtitle("Academic Music Self-Concept per Elective Class") +
+    xlab("")
+```
+
+```{r}
+data %>%
+  ggplot( aes(x=currentSchoolMusic, y=msc_no_ability, fill=currentSchoolMusic)) +
+    geom_violin() +
+    scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+    geom_jitter(color="black", size=0.4, alpha=0.9) +
+    theme_ipsum() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    ggtitle("Non-Academic Music Self-Concept per Elective Class") +
+    xlab("")
+```
+
+## Bar Plots
+
+### Music Class Enrollment (total and by school)
+
+```{r}
+#Count and Proportion per class
+music_elective_table <- data %>% 
+ count(currentSchoolMusic)%>% 
+  mutate("%" = round(n/sum(n)*100,2))
+
+#Proportion per school per class
+ round(prop.table(table(data$school,data$currentSchoolMusic),1)*100, 2)
+
+ #Percentages
+percentages <- data %>%
+  group_by(school, currentSchoolMusic) %>%
+  summarise(count = n()) %>%
+  group_by(school) %>%
+  mutate(percentage = count/sum(count)*100)
+ 
+ #Frequency
+ data %>% 
+  group_by(school, currentSchoolMusic) %>% 
+  summarise(n = n()) %>% 
+  pivot_wider(names_from = currentSchoolMusic,
+              values_from = n)
+
+
+
+ggplot(percentages, aes(fill=currentSchoolMusic, y=percentage, x=school)) + 
+    geom_bar(position="stack", stat="identity") + 
+  geom_text(aes(label = paste0(round(percentage), "%")), 
+            position = position_stack(vjust = 0.5), 
+            size = 3, 
+            color = "grey", 
+            fontface = "bold") +
+    scale_fill_viridis(discrete = T) +
+    theme_ipsum() +
+    labs(x = "School", y = "%", fill = "School Music Electives")
+```
+
+## Heat Map
+
+### Are the observed frequencies in elective participation by school significantly different from expected frequencies in the distribution?
+
+```{r}
+# Perform Chi-square test
+chisq_result <- chisq.test(table(data$school, data$currentSchoolMusic))
+
+chisq_result
+
+# extracting adjusted residuals
+adjusted_residuals <- residuals(chisq_result, type = "pearson")
+
+# Converting adjusted residuals to a matrix format
+adjusted_residuals_matrix <- matrix(adjusted_residuals, nrow = nrow(chisq_result$observed))
+
+# Reshaping data for ggplot
+library(reshape2)
+adjusted_residuals_df <- melt(adjusted_residuals_matrix)
+
+# Renaming levels in Var1 and Var2
+adjusted_residuals_df$Var1 <- factor(adjusted_residuals_df$Var1, levels = c("1", "2", "3"), labels = c("A", "B", "C"))
+
+adjusted_residuals_df$Var2 <- factor(adjusted_residuals_df$Var2, levels = c("1", "2", "3", "4"), labels = c("Band", "Choir", "No music", "Other music"))
+
+
+# Heatmap of adjusted residuals
+ggplot(data = adjusted_residuals_df, aes(x = Var2, y = Var1, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  theme_minimal() +
+  labs(x = "School Music Electives", y = "School", fill = "Adjusted Residuals")
+
+ggplot(data = adjusted_residuals_df, aes(x = Var2, y = Var1, fill = value)) +
+    geom_tile() +
+    scale_fill_viridis() +
+    theme_minimal() +
+    labs(x = "School Music Ellectives", y = "School", fill = "Adjusted Residuals")
+```

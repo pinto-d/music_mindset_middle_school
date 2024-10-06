@@ -1,0 +1,241 @@
+---
+title: "Data Cleaning: Formatting Data"
+format: html
+code-fold: true
+code-tools: true
+editor_options: 
+  chunk_output_type: console
+---
+
+# Formatting/Recoding
+
+```{r}
+setwd("~/Desktop/R_projects/msc") #Set the working directory path 
+
+
+rm(list = ls()) # Clear Global Environment
+
+library(tidyverse) #load packages
+```
+
+## Data
+
+The dataset in "middle_school_music_mindsets_raw_may.csv" (*N* *=* 495) represents data collected in May 2023 hrough paper-and-pencil surveys, entered to a spreadsheet manyally, and revised for data entry errors in Excel before being imported into R (I will explain the data entry revision separately). That dataset is "raw" in the sense that it was not yet cleaned for analysis. I saved the .csv files into two dataframes. While I continuously modified the "data" dataframe over the data cleaning process, the "data_raw" dataframe will always contain the original dataset. The dataset in "middle_school_music_mindsets_raw_may.csv" (*N =* 210) represents data collected in September 2023.
+
+```{r}
+data_may <- read_csv("data/middle_school_music_mindsets_raw_may.csv", col_types = c("race" = "c"))
+
+data_september <- read_csv("data/middle_school_music_mindsets_raw_september.csv", col_types = c("race" = "c"))
+
+data <- rbind(data_may,data_september) #combine datasets
+```
+
+## Renaming Some Observed Variables
+
+I changed some variables' names from codes to texts or shortened those which were too long.
+
+```{r}
+
+data <- data %>% 
+  rename(currentSchoolMusic = school_music_class,
+         currentSchoolMusic_other = school_music_class_other,
+         instrument = s2_7,
+         familyMusic = s2_8,
+         schoolChoir = s2_9,
+         schoolInstrumental = s2_10,
+         schoolExtracurricular = s2_11,
+         outsideChoir = s2_12,
+         outsideInstrumental = s2_13,
+         privateLesson = s2_14,
+         selfTaught = s2_15)
+```
+
+## Recoding
+
+In the raw dataset, all survey responses were entered as numbers, including data from categorical variables. To facilitate data analysis and interpretation in R, I recoded data from all categorical variables from numbers to text. Recoding will also make data understandable when sharing dataset with other researchers.
+
+### Recode "school"
+
+In the raw dataset, schools were labeled as "1", "2", or "3." To facilitate data analysis and interpretation, I recoded "1" as "A", "2" as "B", and "3" as "C".
+
+```{r}
+
+data <- data %>% 
+  mutate(school = 
+           case_match(school,
+                      1 ~ "A",
+                      2 ~ "B",
+                      3 ~ "C"))
+```
+
+### Recode "race".
+
+There were six categories under "race" (matching those in the US Census), and survey participants could select all that applied to them. I inspected the combinations resulting from participants' selections (besides 1 through 6 one-item responses) to determine an effective way to recode the data.
+
+```{r}
+unique(data$race) #Inspect outputs, including more than one answer for more than one race
+```
+
+Based on the output, I chose to recode "," as " and" for clarity.
+
+```{r}
+data <- data %>% 
+  mutate(race = str_replace(race, "1", "American Indian or Alaska Native"),
+         race = str_replace(race, "2", "Asian"),
+         race = str_replace(race, "3", "Black or African American"),
+         race = str_replace(race, "4", "Native Hawaiian or Other Pacific Islander"),
+         race = str_replace(race, "5", "White"),
+         race = str_replace(race, "6", "Some Other Race"),
+         race = str_replace_all(race, ",", " and "))
+
+```
+
+### Combine Race into Fewer Categories
+
+Because some categories were were below n = 10, I recoded responses containing "and" as "Two or More Races" to facilitate analysis and to protect participants' identity when sharing dataset. Reporting original count in the Methods section might still be useful.
+
+```{r}
+#Count with raw responses
+count(data, race) 
+
+
+data <- data %>%
+  mutate(race = as.character(ifelse
+                             (str_detect(race, "and"), "Two or More Races",
+                                           as.character(race)))) #combining responses which selected two or more races as a single category
+
+
+#Count after change
+count(data, race)
+
+#Since there are less than 10 observations for 'American Indian or Alaska Native', include to category 'Some Other Race' 
+data <- data %>% 
+  mutate(race = ifelse(race == "American Indian or Alaska Native", "Some Other Race", race))
+
+#Count after change
+count(data, race)
+```
+
+### Recode "hispanic-latino".
+
+In the raw dataset, the ethnicity variable ("Are you Hispanic or Latino?") used "1" for "Yes" and 2 for "No." To facilidate data analysis and interpretation, I converted the data to "Yes" and "No". This column's category was later changed to factor. Anything besides "Yes" or "No" was recoded as "NA."
+
+```{r}
+
+data$hispanic_latino <- ifelse(data$hispanic_latino == 1,"Yes",
+       ifelse(data$hispanic_latino == 2, "No",NA))
+```
+
+### Recode "gender"
+
+I followed the same process for recoding the gender variable from numbers to text. Responses outside the range (i.g., circling more than one option, resulting in a double- or triple-digit number) were recoded as "NA."
+
+```{r}
+
+data$gender <- ifelse(data$gender == 1, "Female", 
+       ifelse(data$gender == 2, "Male", 
+              ifelse(data$gender  == 3, "Non-Binary", 
+                     ifelse(data$gender  == 4, "Prefer not to say", NA ))))
+```
+
+### Recode "currentSchoolMusic".
+
+Again, I followed the same process for recoding the "currentSchoolMusic" variable from numbers to text.
+
+```{r}
+data$currentSchoolMusic <- ifelse(data$currentSchoolMusic == 1, "Band", 
+                                  ifelse(data$currentSchoolMusic == 2, "Choir",
+                                         ifelse(data$currentSchoolMusic == 3, "Orchestra",
+                                                ifelse(data$currentSchoolMusic == 4, "Other",
+                                                       ifelse(data$currentSchoolMusic == 5, "No music", NA)))))
+
+table(data$currentSchoolMusic)
+```
+
+### Replace NA in optional survey text boxes with "None".
+
+Textboxes in the survey did not apply to all participants. Hence, many of those boxes were left blank purposefully. In "currentSchoolMusic_other" and "instrument," I changed "NA" to "None" to make it clear that data were not missing.
+
+```{r}
+data <- data %>%
+  mutate(currentSchoolMusic_other = ifelse(is.na(currentSchoolMusic_other), "None", currentSchoolMusic_other),
+         instrument = ifelse(is.na(instrument), "None", instrument))
+```
+
+## Dealing with open-ended responses
+
+### Correcting inconsistent data in "currentSchoolMusic_other".
+
+Some participants checked "Other" for "currentSchoolMusic," but wrote class names that are not music classes (e.g., Art, Dance) in "currentSchoolMusic_other." In such cases, I recoded the data in the "currentSchoolMusic" from "Other" to "No music" for those observations. Consequently, I recoded the data in "currentSchoolMusic_other" as "NA" for those observations. One issue that remains is that several participants marked "Other" in "currentSchoolMusic" but did not write the name of the other music class'; it is unclear if all those cases in fact stand for "other music class" or "other elective class" that does not involve music. I did not make changes in those cases.
+
+```{r}
+
+sum(is.na(data$currentSchoolMusic_other))#check for missing values
+
+
+data %>% 
+  distinct(currentSchoolMusic_other) #look up all distinct/unique answers in variable
+
+data <- data %>%
+  mutate(currentSchoolMusic_other = ifelse(grepl("music|sing|voice|guitar|piano", currentSchoolMusic_other, ignore.case = TRUE), currentSchoolMusic_other, "NA"))#keep responses containing keywords returned in prevoius code; otherwise, recode as "NA"
+
+data %>% 
+  distinct(currentSchoolMusic_other) #check if variable now only includes music-related classes
+
+data <- data %>%
+  mutate(currentSchoolMusic = ifelse(grepl("music|sing|voice|guitar|piano", currentSchoolMusic_other, ignore.case = TRUE), "Other", currentSchoolMusic))
+
+```
+
+### In "instrument," change negative answers (e.g., None, I do not play any instrument) to "NA."
+
+After visually screening the vector for words signaling that the participant does not play an instrument, I found the following words:
+
+-   none
+
+-   nothing
+
+-   not
+
+-   don't
+
+-   can't
+
+To standardize the responses on that variable, I changed elements containing strings in which those terms are present into "None".
+
+```{r}
+
+data$instrument <- data$instrument %>% 
+  tolower()
+
+data %>% 
+  distinct(instrument)
+
+
+data <- data %>% 
+  mutate(instrument = ifelse(str_detect(instrument, "don't|dont|never|not|can't|nothing"), "None", instrument))
+
+data %>% 
+  filter(str_detect(instrument, "voice"))
+
+```
+
+### Recode "familyMusic"
+
+1= Yes
+
+2 = No
+
+```{r}
+data <- data %>% 
+  mutate(familyMusic = 
+           case_match(familyMusic, 
+                      2 ~ "No", 
+                      1 ~ "Yes"))
+```
+
+## Save formatted dataset as .csv
+
+```{r}
+write.csv(data, "data/middle_school_music_mindsets_clean_1_formated.csv", row.names = FALSE)
+```

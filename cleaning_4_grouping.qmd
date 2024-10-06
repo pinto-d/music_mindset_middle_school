@@ -1,0 +1,347 @@
+---
+title: "cleaning_grouping"
+format: html
+code-fold: true
+code-tools: true
+editor_options: 
+  chunk_output_type: console
+---
+
+# Grouping Items into Variables
+
+```{r}
+
+setwd("~/Desktop/R_projects/msc")
+
+
+rm(list = ls()) # Clear Global Environment
+
+
+library(tidyverse)
+library(psych)
+library(lavaan)
+```
+
+```{r}
+data <- read_csv("data/middle_school_music_mindsets_clean_3_imputed.csv")
+```
+
+### Reclassify data as factor
+
+```{r}
+reclassFactor <- c("grade","school","race","hispanic_latino","gender","currentSchoolMusic","familyMusic")
+
+data[reclassFactor] <- lapply(data[reclassFactor], as.factor)
+```
+
+### School Music Enrollment
+
+```{r}
+#Create binary variable for enrollment in music electives
+data <- data %>% 
+  mutate(school_music_elective = ifelse(currentSchoolMusic == "No music", "No",
+                                        ifelse(is.na(currentSchoolMusic), NA, "Yes")))
+```
+
+### Subsets
+
+Store demographic data, measurement data, and other character data (i.e, instrument, familyMusic) into separate variables.
+
+```{r}
+
+demographic_data <- data %>% 
+  select(survey_id:currentSchoolMusic, school_music_elective)
+
+measures_data <- data %>%
+  select(s1_1:s3_28) %>%
+  select_if(is.numeric)
+
+instrument <- data %>% 
+  select(instrument)
+
+familyMusic <- data %>% 
+  select(familyMusic)
+```
+
+### Reverse required items
+
+1 = natural
+
+-1 = reversed
+
+```{r}
+key <- c(1, 1, 1, 1, -1, 1, 1, 1, 1, 1, -1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, -1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1)
+
+measures_data_reversed <- psych::reverse.code(keys = key, measures_data)
+
+measures_data_reversed <- as.data.frame(measures_data_reversed)
+
+measures_data_reversed <- measures_data_reversed %>% 
+  rename(s1_5r = `s1_5-`,
+         s1_11r = `s1_11-`,
+         s1_13r = `s1_13-`,
+         s3_14r = `s3_14-`,
+         s3_16r = `s3_16-`,
+         s3_21r = `s3_21-`)
+
+write_csv(measures_data_reversed, "middle_school_music_mindsets_clean_measures_data_reversed_raw_scores.csv")
+
+```
+
+### Z Scores
+
+```{r}
+scaled_measures_data <- scale(measures_data_reversed) #z-scores
+
+scaled_measures_data <- as.data.frame(scaled_measures_data) %>% #convert matrix to data frame
+  rename_all(~ paste0(., "_z")) #rename column names to include "_z" to differentiate from raw scores later in the full data set
+```
+
+### Combine all subsets
+
+```{r}
+data <- cbind(demographic_data, instrument, familyMusic,measures_data_reversed, scaled_measures_data) #all original variables joined together and in new order.
+
+```
+
+### Adding Items to Latent Variables
+
+I created two versions of the latent variables, one with raw scores, the other with z-scores (note: active_engagement and musical_training contain items from different scales i.e., 1-4 and 1-7, I only used a z-score version on those variables when comparing to other variables).
+
+#### Gold-MSI: Active Engagement
+
+```{r}
+active_engagement <- data %>%
+  mutate(active_engagement = s1_1 + s1_2 + s1_4 + s1_7 + s1_9 + s1_11r + s1_12 + s2_1 + s2_2) %>%
+  select(active_engagement)
+```
+
+#### Gold-MSI: Active Engagement (z-score)
+
+```{r}
+active_engagement_z <- data %>%
+  mutate(active_engagement_z = s1_1_z + s1_2_z + s1_4_z + s1_7_z + s1_9_z + s1_11r_z + s1_12_z + s2_1_z + s2_2_z) %>%
+  select(active_engagement_z)
+```
+
+#### Gold-MSI: Musical Training
+
+```{r}
+musical_training <- data %>%
+  mutate(musical_training = s1_5r + s1_13r + s2_3 + s2_4 + s2_5 + s2_6) %>%
+  select(musical_training)
+```
+
+#### Gold-MSI: Musical Training (z-score)
+
+```{r}
+musical_training_z <- data %>%
+  mutate(musical_training_z = s1_5r_z + s1_13r_z + s2_3_z + s2_4_z + s2_5_z + s2_6_z) %>%
+  select(musical_training_z)
+```
+
+#### Growth Mindset
+
+```{r}
+growth_mindset <- data %>%
+  mutate(growth_mindset = s1_3 + s1_6 + s1_8 + s1_10) %>%
+  select(growth_mindset)
+```
+
+#### Growth Mindset (z-score)
+
+```{r}
+growth_mindset_z <- data %>%
+  mutate(growth_mindset_z = s1_3_z + s1_6_z + s1_8_z + s1_10_z) %>%
+  select(growth_mindset_z)
+```
+
+#### Mood Management (Music Self Concept)
+
+```{r}
+mood_management_msc <- data %>%
+  mutate(mood_management_msc = s3_1 + s3_3 + s3_13 + s3_17 + s3_19 + s3_22) %>%
+  select(mood_management_msc)
+
+```
+
+#### Mood Management (Music Self Concept; z-score)
+
+```{r}
+mood_management_msc_z <- data %>%
+  mutate(mood_management_msc_z = s3_1_z + s3_3_z + s3_13_z + s3_17_z + s3_19_z + s3_22_z) %>%
+  select(mood_management_msc_z)
+
+```
+
+#### Community (Music Self Concept)
+
+```{r}
+community_msc <- data %>%
+  mutate(community_msc = s3_2 + s3_15 + s3_23 + s3_25) %>%
+  select(community_msc)
+```
+
+#### Community (Music Self Concept; z-score)
+
+```{r}
+community_msc_z <- data %>%
+  mutate(community_msc_z = s3_2_z + s3_15_z + s3_23_z + s3_25_z) %>%
+  select(community_msc_z)
+```
+
+#### Musical Ability (Music Self Concept)
+
+```{r}
+musical_ability_msc <- data %>%
+  mutate(musical_ability_msc = s3_4 + s3_6 + s3_8 + s3_14r + s3_16r) %>%
+  select(musical_ability_msc)
+```
+
+#### Musical Ability (Music Self Concept; z-score)
+
+```{r}
+musical_ability_msc_z <- data %>%
+  mutate(musical_ability_msc_z = s3_4_z + s3_6_z + s3_8_z + s3_14r_z + s3_16r_z) %>%
+  select(musical_ability_msc_z)
+```
+
+#### Adaptive Self (Music Self Concept)
+
+```{r}
+adaptive_musical_self_msc <- data %>%
+  mutate(adaptive_musical_self_msc = s3_5 + s3_10 + s3_24 + s3_28) %>%
+  select(adaptive_musical_self_msc)
+```
+
+#### Adaptive Self (Music Self Concept; z-score)
+
+```{r}
+adaptive_musical_self_msc_z <- data %>%
+  mutate(adaptive_musical_self_msc_z = s3_5_z + s3_10_z + s3_24_z + s3_28_z) %>%
+  select(adaptive_musical_self_msc_z)
+```
+
+#### Ideal Self (Music Self Concept)
+
+```{r}
+ideal_musical_self_msc <- data %>%
+  mutate(ideal_musical_self_msc = s3_7 + s3_11 + s3_18 + s3_20 + s3_27) %>%
+  select(ideal_musical_self_msc)
+```
+
+#### Ideal Self (Music Self Concept; z-score)
+
+```{r}
+ideal_musical_self_msc_z <- data %>%
+  mutate(ideal_musical_self_msc_z = s3_7_z + s3_11_z + s3_18_z + s3_20_z + s3_27_z) %>%
+  select(ideal_musical_self_msc_z)
+```
+
+#### Movement & Dance (Music Self Concept)
+
+```{r}
+movement_dance_msc <- data %>%
+  mutate(movement_dance_msc = s3_9 + s3_12 + s3_21r + s3_26) %>%
+  select(movement_dance_msc)
+```
+
+#### Movement & Dance (Music Self Concept; z-score)
+
+```{r}
+movement_dance_msc_z <- data %>%
+  mutate(movement_dance_msc_z = s3_9_z + s3_12_z + s3_21r_z + s3_26_z) %>%
+  select(movement_dance_msc_z)
+```
+
+#### Music Self-Concept (Full Scale)
+
+```{r}
+
+msc_full <- mood_management_msc	+ 
+  community_msc	+ 
+  musical_ability_msc	+ 
+  adaptive_musical_self_msc + 
+  ideal_musical_self_msc + 
+  movement_dance_msc
+
+colnames(msc_full) <- "msc_full"
+
+```
+
+#### Music Self-Concept (Full Scale; z-scores)
+
+```{r}
+
+msc_full_z <- scale(msc_full)
+
+colnames(msc_full_z) <- "msc_full_z"
+
+describe(msc_full_z)
+
+```
+
+## Add all Variables to full dataset
+
+```{r}
+
+data <- cbind(data,
+               growth_mindset,
+               active_engagement,
+               musical_training,
+               mood_management_msc,
+               community_msc,
+               musical_ability_msc,
+               adaptive_musical_self_msc,
+               ideal_musical_self_msc,
+               movement_dance_msc,
+               msc_full, 
+               active_engagement_z,
+               musical_training_z,
+               growth_mindset_z,
+               mood_management_msc_z,
+               community_msc_z,
+               musical_ability_msc_z,
+               adaptive_musical_self_msc_z,
+               ideal_musical_self_msc_z,
+               movement_dance_msc_z,
+               msc_full_z)
+```
+
+## Music No Ability
+
+To examine the difference between the musical ability sub-scale and the composite msc score, I created a variable that represents a composite of all sub-scales but excludes the musical ability sub-scale, thus representing a third outcome.
+
+```{r}
+
+#create MSC Full without musical ability subscale
+msc_no_ability <- data$mood_management_msc +
+  data$community_msc +
+  data$adaptive_musical_self_msc +
+  data$ideal_musical_self_msc +
+  data$mood_management_msc
+
+data <- cbind(data, msc_no_ability)
+```
+
+## Music No Ability (z-scores)
+
+```{r}
+msc_no_ability_z <- scale(msc_no_ability)
+data <- cbind(data, msc_no_ability_z)
+```
+
+## Subset for Data Analysis (does not contain individual items for measures related to latent variables)
+
+```{r}
+
+data_partial <- data %>% 
+  select(!matches("s1|s2|s3"))
+```
+
+```{r}
+
+write_csv(data, "data/middle_school_music_mindsets_clean_full.csv")
+
+write_csv(data_partial, "data/middle_school_music_mindsets_clean_partial.csv")
+```
